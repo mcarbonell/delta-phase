@@ -24,6 +24,16 @@ class ShortCausalConv1D(nn.Module):
         conv_out = self.conv(x_t)[:, :, :L].transpose(1, 2)
         return x + self.act(conv_out)
 
+    def step(self, x_t: torch.Tensor, conv_state=None):
+        B, L, D = x_t.shape
+        if conv_state is None:
+            conv_state = torch.zeros(B, D, self.kernel_size - 1, device=x_t.device, dtype=x_t.dtype)
+        inputs = torch.cat([conv_state, x_t.transpose(1, 2)], dim=2)
+        new_conv_state = inputs[:, :, 1:]
+        conv_out = F.conv1d(inputs, self.conv.weight, self.conv.bias, groups=D)[:, :, -1:]
+        out = x_t + self.act(conv_out.transpose(1, 2))
+        return out, new_conv_state
+
 class LearnableSubstrateLerpFFN(nn.Module):
     """FFN con router Softmax Lerp aprendible entre FWHT, DCT-II y DWT Haar (Vectorizado)"""
     def __init__(self, d_model: int, num_banks: int = 4):
@@ -125,10 +135,14 @@ class DeltaPhaseHolographicBlock(nn.Module):
         theta_k = self.w_k(conv_x).view(B, L_padded, self.n_heads, self.d_k).transpose(1, 2)
         theta_q = self.w_q(conv_x).view(B, L_padded, self.n_heads, self.d_k).transpose(1, 2)
         v = self.w_v(conv_x).view(B, L_padded, self.n_heads, self.d_k).transpose(1, 2)
-        beta = torch.sigmoid(self.w_beta(conv_x)).transpose(1, 2)
+        beta = 2.0 * torch.sigmoid(self.w_beta(conv_x)).transpose(1, 2)
+        if pad_len > 0:
+            mask = torch.ones(B, self.n_heads, L_padded, device=x.device)
+            mask[:, :, L:] = 0.0
+            beta = beta * mask
         
-        theta_k_f = theta_k.float()
-        theta_q_f = theta_q.float()
+        theta_k_f = theta_k if theta_k.dtype == torch.float64 else theta_k.float()
+        theta_q_f = theta_q if theta_q.dtype == torch.float64 else theta_q.float()
         K = torch.complex(torch.cos(theta_k_f), torch.sin(theta_k_f))
         Q = torch.complex(torch.cos(theta_q_f), torch.sin(theta_q_f))
 
@@ -142,11 +156,12 @@ class DeltaPhaseHolographicBlock(nn.Module):
         Gram_real = torch.matmul(K_c, torch.conj(K_c).transpose(-1, -2)).real * inv_dk
         L_mat = torch.triu(Gram_real * beta_c.unsqueeze(-1), diagonal=1)
         I_mat = torch.eye(C, device=x.device).view(1, 1, 1, C, C)
-        T_mat = torch.linalg.inv(I_mat + L_mat.transpose(-1, -2))
+        T_mat = torch.linalg.solve_triangular(I_mat + L_mat.transpose(-1, -2), I_mat, upper=False)
 
         # 2. Inter-chunk scan (num_chunks iterations instead of token-by-token loop)
+        complex_dtype = torch.complex128 if x.dtype == torch.float64 else torch.complex64
         if memory_state is None:
-            M_state = torch.zeros(B, self.n_heads, self.d_k, self.d_k, dtype=torch.complex64, device=x.device)
+            M_state = torch.zeros(B, self.n_heads, self.d_k, self.d_k, dtype=complex_dtype, device=x.device)
         else:
             M_state = memory_state
 
@@ -159,7 +174,7 @@ class DeltaPhaseHolographicBlock(nn.Module):
             o_inter = torch.matmul(M_state, torch.conj(qc).transpose(-1, -2)).real.transpose(-1, -2) * inv_dk
             A_intra = torch.tril(torch.matmul(qc, torch.conj(kc).transpose(-1, -2)).real) * inv_dk
             out_chunks.append(torch.matmul(A_intra, U_c) + o_inter)
-            M_state = M_state + torch.matmul(U_c.to(torch.complex64).transpose(-1, -2), kc)
+            M_state = M_state + torch.matmul(U_c.to(complex_dtype).transpose(-1, -2), kc)
 
         retrieved = torch.cat(out_chunks, dim=2)[:, :, :L].transpose(1, 2).reshape(B, L, D)
         retrieved_norm = self.norm_retrieved(retrieved)
@@ -168,26 +183,35 @@ class DeltaPhaseHolographicBlock(nn.Module):
         x = x + self.ffn(self.norm2(x))
         return x, M_state
 
-    def step(self, x_t: torch.Tensor, memory_state=None):
+    def step(self, x_t: torch.Tensor, state=None):
         """Single-token O(1) streaming step during autoregressive decoding"""
         res = x_t
         normed = self.norm1(x_t)
-        conv_x = self.causal_conv(normed)
+        
+        if state is None:
+            conv_state, memory_state = None, None
+        elif isinstance(state, tuple):
+            conv_state, memory_state = state
+        else:
+            conv_state, memory_state = None, state
+            
+        conv_x, new_conv_state = self.causal_conv.step(normed, conv_state=conv_state)
         B, L, D = conv_x.shape # L=1
         inv_dk = self.inv_dk
         
         theta_k = self.w_k(conv_x).view(B, 1, self.n_heads, self.d_k).transpose(1, 2)
         theta_q = self.w_q(conv_x).view(B, 1, self.n_heads, self.d_k).transpose(1, 2)
         v = self.w_v(conv_x).view(B, 1, self.n_heads, self.d_k).transpose(1, 2)
-        beta = torch.sigmoid(self.w_beta(conv_x)).transpose(1, 2)
+        beta = 2.0 * torch.sigmoid(self.w_beta(conv_x)).transpose(1, 2)
         
-        theta_k_f = theta_k.float()
-        theta_q_f = theta_q.float()
+        theta_k_f = theta_k if theta_k.dtype == torch.float64 else theta_k.float()
+        theta_q_f = theta_q if theta_q.dtype == torch.float64 else theta_q.float()
         K = torch.complex(torch.cos(theta_k_f), torch.sin(theta_k_f))
         Q = torch.complex(torch.cos(theta_q_f), torch.sin(theta_q_f))
         
+        complex_dtype = torch.complex128 if x_t.dtype == torch.float64 else torch.complex64
         if memory_state is None:
-            M = torch.zeros(B, self.n_heads, self.d_k, self.d_k, dtype=torch.complex64, device=x_t.device)
+            M = torch.zeros(B, self.n_heads, self.d_k, self.d_k, dtype=complex_dtype, device=x_t.device)
         else:
             M = memory_state
             
@@ -201,8 +225,8 @@ class DeltaPhaseHolographicBlock(nn.Module):
         
         v_old = torch.matmul(M, k_conj.unsqueeze(-1)).squeeze(-1).real * inv_dk
         err = v_t - v_old
-        update = torch.matmul(err.to(torch.complex64).unsqueeze(-1), k_t.unsqueeze(-2))
-        M_next = M + beta_t.unsqueeze(-1).unsqueeze(-1) * inv_dk * update
+        update = torch.matmul(err.to(complex_dtype).unsqueeze(-1), k_t.unsqueeze(-2))
+        M_next = M + beta_t.unsqueeze(-1).unsqueeze(-1) * update
         
         ret = torch.matmul(M_next, q_conj.unsqueeze(-1)).squeeze(-1).real * inv_dk
         retrieved = ret.view(B, 1, D)
@@ -210,4 +234,4 @@ class DeltaPhaseHolographicBlock(nn.Module):
         
         x = res + self.out_proj(retrieved_norm)
         x = x + self.ffn(self.norm2(x))
-        return x, M_next
+        return x, (new_conv_state, M_next)
