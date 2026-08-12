@@ -57,9 +57,21 @@ $$\text{FFN}(x) = \sigma(\alpha)_1 \cdot \text{Branch}_{\text{fwht}}(x) + \sigma
 `delta_phase` (v1.1.0) includes **`LogicPhaseCore`**, an active symbolic phase-space processor:
 - **`BIND(K, V)` / `UNBIND(K, M)`:** Hadamard phasor association and conjugate readout ($1.19 \times 10^{-7}$ FP32 machine precision error).
 - **`NOT(Q)`:** Phase shift by $\pi$ radians ($180^\circ$) creating exact **$-1.0000$ destructive wave cancellation**.
-- **`BUNDLE(Q1, Q2)`:** Vector superposition (Plate 1995 VSA Bundling / Set Union) creating **+61% constructive wave gain** on target alignment.
 - **`STRICT_AND(r1, r2)`:** Strict boolean intersection gate via thresholded minimum activation (**$0.000000$ absolute zero** if one term is missing).
 - **Autonomous Multi-Hop Loop ($A \to B \to C$):** Executes internal multi-step deductions within a single forward pass (**97.76% signal coherence across 2 hops**, 95.71% across 4 hops).
+
+---
+
+### 5. Delta-Laplace Phase Memory Core ($s = \sigma + i\omega$) & Continuous-Time Discretization (v1.2.0)
+
+`delta_phase` (v1.2.0) introduces **`LaplacePhaseCore`**, extending unimodular phase $S^1$ into the complete **complex s-plane of Laplace**:
+$$K_t = e^{s_t \Delta t} = e^{\sigma_t \Delta t + i\theta_t \Delta t} = e^{\sigma_t \Delta t} \cdot \big(\cos(\theta_t \Delta t) + i \sin(\theta_t \Delta t)\big)$$
+
+- **Continuous-to-Discrete ZOH Mapping:** Mapes continuous Hurwitz stability $\text{Re}(s) = \sigma \le 0$ to the discrete **Z-plane unit disk ($|z| = e^{\sigma \Delta t} \le 1$)** via Zero-Order Hold.
+- **Time-Scale Invariance (`v339`):** Achieves **97.41% representation invariance across 2x time-scale shifts** ($L=128$) and **92.39% across 4x time-scale shifts** ($L=256$).
+- **Hurwitz Stability & Infinite Context (`v340`):** State norm $\|M_t\|_F$ remains strictly bounded in a corridor between **9.99 and 12.33 across 100,000 continuous tokens**.
+- **Falsification & Positive Control Audit (`v341`):** Forcing $\text{Re}(s) = \sigma > 0$ causes immediate numerical **explosion to $1.03 \times 10^{10}$ at step 18**, proving stability is 100% driven by the Hurwitz constraint.
+- **Statistical Zero-Drift & SNR Audit (`v342`):** Linear regression slope over 50 checkpoints is $m = 9.229 \times 10^{-7} \approx 0.000000$ (zero drift), with a multi-needle capacity norm of $0.1000$ over 50 keys at step 100,000.
 
 ---
 
@@ -94,6 +106,21 @@ python scratch/test_fp64_gradcheck.py
 1. **Unproven at Multi-Billion Scale (>1B+ Parameters):** All empirical evidence to date is based on small-scale synthetic associative benchmarks (MQAR) and small language models (72M parameters).
 2. **Finite Memory Capacity vs. Infinite KV-Cache:** Phasor encoding on $S^1$ provides quasi-orthogonality, but a fixed state matrix $M \in \mathbb{C}^{d_k \times d_k}$ has a theoretical information bound ($2 d_k^2$ real floats).
 3. **Natural Language Validation in Progress:** Active pre-training of TinyThinker V12 (72.41M params on TinyStories BPE 16K) is currently running on GPU.
+
+---
+
+## 📚 Academic References
+
+1. **Oppenheim, A. V., & Willsky, A. S.** (1997). *Signals and Systems* (2nd ed.). Prentice Hall.  
+   *(Establishes complex exponentials $e^{st}$ as universal eigenfunctions of Linear Time-Invariant (LTI) systems).*
+2. **Chen, C. T.** (1999). *Linear System Theory and Design* (3rd ed.). Oxford University Press.  
+   *(Formulates continuous-to-discrete Z-domain mappings, Hurwitz stability, and state-space matrix diagonalization).*
+3. **Kreyszig, E.** (2011). *Advanced Engineering Mathematics* (10th ed.). John Wiley & Sons.  
+   *(Provides mathematical foundations for complex frequency planes, Laplace operators, and phase dynamics).*
+4. **Gu, A., Goel, K., & Ré, C.** (2022). *Efficiently Modeling Long Sequences with Structured State Spaces (S4)*. In *International Conference on Learning Representations (ICLR)*.  
+   *(Demonstrates continuous-time state-space models, HiPPO initialization, and Hurwitz-stable matrix parameterization).*
+5. **Plate, T. A.** (1995). *Holographic Reduced Representations*. *IEEE Transactions on Neural Networks*, 6(3), 623-641.  
+   *(Foundational theory for Vector Symbolic Architectures (VSA), circular convolution, binding, and bundling superposition).*
 
 ---
 

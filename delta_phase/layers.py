@@ -253,27 +253,98 @@ class DeltaPhaseHolographicBlock(nn.Module):
         
         complex_dtype = torch.complex128 if x_t.dtype == torch.float64 else torch.complex64
         if memory_state is None:
-            M = torch.zeros(B, self.n_heads, self.d_k, self.d_k, dtype=complex_dtype, device=x_t.device)
-        else:
-            M = memory_state
+            memory_state = torch.zeros(B, self.n_heads, self.d_k, self.d_k, dtype=complex_dtype, device=x_t.device)
             
-        k_t = K[:, :, 0]
-        q_t = Q[:, :, 0]
-        v_t = v[:, :, 0]
-        beta_t = beta[:, :, 0]
+        kt, qt, vt, bt = K[:, :, 0], Q[:, :, 0], v[:, :, 0], beta[:, :, 0]
+        v_old = torch.matmul(memory_state, torch.conj(kt).unsqueeze(-1)).squeeze(-1).real * inv_dk
+        err = vt - v_old
+        update = torch.matmul(err.to(complex_dtype).unsqueeze(-1), kt.unsqueeze(-2))
+        memory_state = memory_state + bt.unsqueeze(-1).unsqueeze(-1) * update
         
-        k_conj = torch.conj(k_t)
-        q_conj = torch.conj(q_t)
-        
-        v_old = torch.matmul(M, k_conj.unsqueeze(-1)).squeeze(-1).real * inv_dk
-        err = v_t - v_old
-        update = torch.matmul(err.to(complex_dtype).unsqueeze(-1), k_t.unsqueeze(-2))
-        M_next = M + beta_t.unsqueeze(-1).unsqueeze(-1) * update
-        
-        ret = torch.matmul(M_next, q_conj.unsqueeze(-1)).squeeze(-1).real * inv_dk
-        retrieved = ret.view(B, 1, D)
+        retrieved_t = torch.matmul(memory_state, torch.conj(qt).unsqueeze(-1)).squeeze(-1).real * inv_dk
+        retrieved = retrieved_t.transpose(1, 2).reshape(B, 1, D)
         retrieved_norm = self.norm_retrieved(retrieved)
         
         x = res + self.out_proj(retrieved_norm)
         x = x + self.ffn(self.norm2(x))
-        return x, (new_conv_state, M_next)
+        return x, (new_conv_state, memory_state)
+
+
+class LaplacePhaseCore(nn.Module):
+    """
+    Delta-Laplace Phase Memory Core:
+    Operates over complex frequency s = sigma + i*theta in the Laplace s-plane.
+    Guarantees Hurwitz Stability via strictly non-positive real dissipation sigma <= 0 (Re(s) <= 0),
+    mapped to the Z-plane unit disk |z| = exp(sigma * dt) <= 1 via Continuous Zero-Order Hold (ZOH).
+    """
+    def __init__(self, d_model=64, n_heads=4, d_k=16):
+        super().__init__()
+        self.d_model = d_model
+        self.n_heads = n_heads
+        self.d_k = d_k
+        self.inv_dk = 1.0 / float(d_k)
+        
+        self.w_theta_k = nn.Linear(d_model, d_model, bias=False)
+        self.w_sigma_k = nn.Linear(d_model, d_model, bias=False)
+        self.w_theta_q = nn.Linear(d_model, d_model, bias=False)
+        self.w_sigma_q = nn.Linear(d_model, d_model, bias=False)
+        self.w_v = nn.Linear(d_model, d_model, bias=False)
+        self.w_beta = nn.Linear(d_model, n_heads, bias=False)
+
+    def forward(self, x: torch.Tensor, memory_state=None, time_scale=1.0):
+        B, L, D = x.shape
+        dt = 1.0 / float(time_scale)
+        complex_dtype = torch.complex128 if x.dtype == torch.float64 else torch.complex64
+        
+        theta_k = (self.w_theta_k(x) * dt).view(B, L, self.n_heads, self.d_k).transpose(1, 2)
+        sigma_k = (-F.softplus(self.w_sigma_k(x)) * dt).view(B, L, self.n_heads, self.d_k).transpose(1, 2)
+        
+        theta_q = (self.w_theta_q(x) * dt).view(B, L, self.n_heads, self.d_k).transpose(1, 2)
+        sigma_q = (-F.softplus(self.w_sigma_q(x)) * dt).view(B, L, self.n_heads, self.d_k).transpose(1, 2)
+        
+        v = self.w_v(x).view(B, L, self.n_heads, self.d_k).transpose(1, 2)
+        beta = (2.0 * torch.sigmoid(self.w_beta(x)) * dt).transpose(1, 2)
+        
+        r_k = torch.exp(sigma_k)
+        K = torch.complex(r_k * torch.cos(theta_k), r_k * torch.sin(theta_k))
+        
+        r_q = torch.exp(sigma_q)
+        Q = torch.complex(r_q * torch.cos(theta_q), r_q * torch.sin(theta_q))
+        
+        if memory_state is None:
+            M = torch.zeros(B, self.n_heads, self.d_k, self.d_k, dtype=complex_dtype, device=x.device)
+        else:
+            M = memory_state
+            
+        out_list = []
+        for t in range(L):
+            kt, qt, vt, bt = K[:, :, t], Q[:, :, t], v[:, :, t], beta[:, :, t]
+            v_old = torch.matmul(M, torch.conj(kt).unsqueeze(-1)).squeeze(-1).real * self.inv_dk
+            err = vt - v_old
+            M = M * r_k[:, :, t].unsqueeze(-1) + bt.unsqueeze(-1).unsqueeze(-1) * torch.matmul(err.to(complex_dtype).unsqueeze(-1), kt.unsqueeze(-2))
+            out_t = torch.matmul(M, torch.conj(qt).unsqueeze(-1)).squeeze(-1).real * self.inv_dk
+            out_list.append(out_t)
+            
+        retrieved = torch.cat(out_list, dim=-1).view(B, self.n_heads, L, self.d_k).transpose(1, 2).reshape(B, L, D)
+        return retrieved, M
+
+    def bind(self, k: torch.Tensor, v: torch.Tensor) -> torch.Tensor:
+        """VSA Phasor Binding: k * v"""
+        return k * v
+
+    def unbind(self, bound: torch.Tensor, k: torch.Tensor) -> torch.Tensor:
+        """VSA Phasor Unbinding via Complex Conjugate: bound * conj(k)"""
+        return bound * torch.conj(k)
+
+    def bundle(self, r1: torch.Tensor, r2: torch.Tensor) -> torch.Tensor:
+        """VSA Vector Bundling (Superposition / Set Union): r1 + r2"""
+        return r1 + r2
+
+    def strict_and_op(self, r1: torch.Tensor, r2: torch.Tensor, threshold: float = 0.5) -> torch.Tensor:
+        """Strict Boolean Intersection Gate (AND): Zero if missing, thresholded min amplitude"""
+        mag1, mag2 = torch.abs(r1), torch.abs(r2)
+        gate = (mag1 > threshold) & (mag2 > threshold)
+        min_mag = torch.minimum(mag1, mag2)
+        phase = torch.angle(r1 + r2)
+        result_mag = torch.where(gate, min_mag, torch.zeros_like(min_mag))
+        return torch.complex(result_mag * torch.cos(phase), result_mag * torch.sin(phase))
