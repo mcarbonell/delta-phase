@@ -4,6 +4,48 @@ import torch.nn as nn
 import torch.nn.functional as F
 from .spectral import create_hadamard_matrix, create_dct2_matrix, create_haar_matrix
 
+class LogicPhaseCore(nn.Module):
+    """
+    LogicPhase Symbolic Phasor Operators on S^1 (BIND, UNBIND, NOT, AND)
+    """
+    def __init__(self, d_k: int = 32):
+        super().__init__()
+        self.d_k = d_k
+
+    def bind(self, K: torch.Tensor, V: torch.Tensor) -> torch.Tensor:
+        """BIND(K, V) -> Phasor Hadamard product K * V"""
+        V_complex = V.to(torch.complex64) if not V.is_complex() else V
+        return K * V_complex
+
+    def unbind(self, K: torch.Tensor, M_bind: torch.Tensor) -> torch.Tensor:
+        """UNBIND(K, M) -> Conjugate readout conj(K) * M"""
+        return (torch.conj(K) * M_bind).real
+
+    def not_op(self, Q: torch.Tensor) -> torch.Tensor:
+        """NOT(Q) -> Phase Shift by pi radians (-Q) for destructive wave cancellation"""
+        return Q * torch.complex(torch.tensor(-1.0, device=Q.device), torch.tensor(0.0, device=Q.device))
+
+    def bundle(self, Q1: torch.Tensor, Q2: torch.Tensor) -> torch.Tensor:
+        """
+        BUNDLE(Q1, Q2) -> Vector Superposition (Plate 1995 VSA Bundling / Set Union)
+        Sum of phasors normalized to unit magnitude. Represents memory set superposition.
+        """
+        superpos = Q1 + Q2
+        mags = torch.abs(superpos) + 1e-8
+        return superpos / mags
+
+    def strict_and_op(self, r1: torch.Tensor, r2: torch.Tensor, threshold: float = 0.5) -> torch.Tensor:
+        """
+        STRICT_AND(r1, r2) -> Strict Logical Conjunction (Intersection Gate)
+        Returns minimum activation when both inputs exceed threshold, strictly 0.0000 otherwise.
+        """
+        mask = (r1 > threshold) & (r2 > threshold)
+        return torch.minimum(r1, r2) * mask.float()
+
+    def and_op(self, Q1: torch.Tensor, Q2: torch.Tensor) -> torch.Tensor:
+        """Coherent superposition bundling for query phasors"""
+        return self.bundle(Q1, Q2)
+
 class ShortCausalConv1D(nn.Module):
     """Depthwise 1D Causal Convolution (kernel_size=4) for local token binding"""
     def __init__(self, d_model: int, kernel_size: int = 4):
