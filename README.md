@@ -130,18 +130,47 @@ Evaluates Generalized Complex Householder Reflections $\beta_t = 1 + e^{i\varphi
 
 > **Key Theoretical Breakthrough:** Real Householder reflections $I - \beta k k^*$ are restricted to real eigenvalues $1 - \beta \in (-1, 1)$, limiting state updates to parity counting ($\mathbb{Z}_2$). Parameterizing $\beta_t = 1 + e^{i\varphi_t}$ in $\mathbb{C}$ yields complex unit eigenvalues $-e^{i\varphi_t} \in S^1$, unlocking **native $\mathbb{Z}_k$ cyclic group counting in a single token step**. This benchmark measures pure algebraic group expressivity and is **100% immune to state RAM size confounders**.
 
+### 4. GPU Wall-Clock Scaling & Softmax OOM Immunity (NVIDIA Tesla T4)
+Evaluates real-time execution latency and VRAM allocation on an NVIDIA Tesla T4 GPU ([`docs/findings_gpu_triton_wallclock_benchmark.md`](docs/findings_gpu_triton_wallclock_benchmark.md) / [`notebooks/benchmark_triton_gpu.ipynb`](notebooks/benchmark_triton_gpu.ipynb)):
+
+| Sequence Length ($L$) | DeltaPhase Fused ($O(N)$) | Softmax Attention ($O(N^2)$) | Scaling Factor | VRAM Peak (MB) | Softmax Status |
+| :---: | :---: | :---: | :---: | :---: | :---: |
+| **1,024** | $10.31\text{ ms}$ | $3.45\text{ ms}$ | Base | $34.2\text{ MB}$ | Active |
+| **2,048** | $16.71\text{ ms}$ | $2.82\text{ ms}$ | $1.62\times$ | $90.7\text{ MB}$ | Active |
+| **4,096** | $32.37\text{ ms}$ | $9.33\text{ ms}$ | $1.93\times$ | $234.2\text{ MB}$ | Active |
+| **8,192** | $63.53\text{ ms}$ | $33.81\text{ ms}$ | $1.96\times$ | $713.3\text{ MB}$ | Active |
+| **16,384** | **$168.16\text{ ms}$** | ❌ **OOM (Out of Memory)** | $2.64\times$ | $2,439.4\text{ MB}$ | **CRASH** 💥 |
+| **32,768** | **$257.81\text{ ms}$** | ❌ **OOM (Out of Memory)** | $1.53\times$ | $8,963.6\text{ MB}$ | **CRASH** 💥 |
+| **65,536** | **$534.54\text{ ms}$** | ❌ **OOM (Out of Memory)** | **$2.07\times$** | $9,700.1\text{ MB}$ | **CRASH** 💥 |
+
+> **Throughput Milestone:** Reaches **$122,602\text{ tokens/second}$** at $L=65,536$, processing an entire 150-page document in $0.53\text{ seconds}$ on a single entry-level GPU where quadratic Softmax crashes at $16\text{K}$.
+
+### 5. Extreme Long-Context Needle In A Haystack (NIAH 65K - 100.00% Green)
+Evaluates associative recall across context lengths from $512$ to $65,536$ tokens across needle depths ($10\%$ to $90\%$) under selective gating ([`docs/findings_niah_and_dk_sweep_benchmarks.md`](docs/findings_niah_and_dk_sweep_benchmarks.md)):
+
+* **Exact Cosine Retrieval:** **$100.00\%$ ($+1.0000$ Cosine Sim)** across all sequence lengths and insertion depths ($10\%$ to $90\%$).
+* **Constant Memory Footprint:** State retained in a fixed $8\text{ KB}$ matrix per head ($\mathbb{C}^{64 \times 64}$) with zero crosstalk accumulation.
 
 ---
 
 ## ⚡ Quickstart
 
-### Run Head-to-Head, FP64 Gradcheck & Quantized Phasor Audits
+### Run Head-to-Head, FP64 Gradcheck, Quantized Phasor & NIAH Audits
 
 ```bash
+# 1. Double-Precision Gradcheck & Group Expressivity
 python scratch/run_head_to_head_dk32.py
 python scratch/test_fp64_gradcheck.py
+
+# 2. Integer Quantized Phasor Engine (uint8 / uint16 ALU)
 python tests/test_quantized_phasors_poc.py
+
+# 3. Needle In A Haystack (NIAH) Selective Gating (512 to 65k tokens)
+python tests/test_selective_gating_niah.py
 ```
+
+### Run Google Colab GPU Benchmark
+Open and execute [`notebooks/benchmark_triton_gpu.ipynb`](notebooks/benchmark_triton_gpu.ipynb) on any GPU instance.
 
 ---
 
