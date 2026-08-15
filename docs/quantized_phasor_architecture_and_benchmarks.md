@@ -131,3 +131,5 @@ Evaluating recall accuracy across superposed key-value pairs ($M = \sum K_i \odo
 1. **Edge & Microcontroller Deployment:** `uint8` phasors enable running DeltaPhase memory cores on low-power microcontrollers (ARM Cortex-M, RISC-V, ESP32) lacking hardware floating-point units (FPUs).
 2. **SIMD Vectorization:** Using AVX2 / AVX-512 `_mm256_add_epi8` or ARM NEON `vadd_u8` executes **32 to 64 phasor multiplications per single clock cycle**.
 3. **Custom Triton / CUDA Kernel:** Writing a fused integer phasor attention kernel will unlock near-instantaneous streaming inference on consumer GPUs.
+4. **Native $(S^1)^D$ Phasor Embeddings:** Extending `uint8` quantization to the token embedding vocabulary dictionary for complete end-to-end integer wave propagation (see [`docs/native_phasor_embeddings_and_spectral_dimensions.md`](native_phasor_embeddings_and_spectral_dimensions.md)).
+

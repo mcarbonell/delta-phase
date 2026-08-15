@@ -105,3 +105,7 @@ By unifying **Unitary Complex Phasors ($S^1 \subset \mathbb{C}$)**, **Hurwitz-St
 ## 🔭 The Long-Term Horizon
 
 DeltaPhase is not merely an alternative attention layer; it represents a convergence of **Signal Processing, Holographic Associative Memory, Control Theory, and Deep Learning**. By embedding the physics of waves directly into the memory core, it paves the way for lifelong, continuous-time artificial intelligence.
+
+*For an in-depth manifesto on extending DeltaPhase beyond natural language into continuous raw audio (48kHz), infinite-coherence video (60 FPS), Brain-Computer Interfaces (EEG), Doppler radar, and Navier-Stokes fluid dynamics, see:*  
+👉 [`docs/beyond_language_continuous_wave_horizons.md`](beyond_language_continuous_wave_horizons.md)
+

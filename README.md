@@ -87,7 +87,7 @@ $$K_t = e^{s_t \Delta t} = e^{\sigma_t \Delta t + i\theta_t \Delta t} = e^{\sigm
 
 ### 7. Strategic Vision & Long-Term Paradigm Breakthroughs
 
-Beyond incremental speedups, DeltaPhase unlocks qualitative capabilities impossible in real-valued Euclidean networks ([`docs/vision_and_paradigm_breakthroughs.md`](docs/vision_and_paradigm_breakthroughs.md)):
+Beyond incremental speedups, DeltaPhase may unlock qualitative capabilities impossible in real-valued Euclidean networks ([`docs/vision_and_paradigm_breakthroughs.md`](docs/vision_and_paradigm_breakthroughs.md)):
 1. **24/7 Lifelong Streaming Agents:** In-context continuous Fast Weight learning with constant $O(1)$ memory footprint ($\approx 10\text{ MB}$) and zero catastrophic forgetting.
 2. **Latent Hypothesis Pruning via Wave Cancellation:** Superposing alternative hypothesis branches and invalidating dead ends in $O(1)$ via exact destructive interference ($\text{NOT} \to e^{i\pi} = -1$).
 3. **Sampling-Rate Invariant Telemetry:** Continuous-time physical modeling ($s = \sigma + i\omega$) adapting zero-shot to variable sensor clock frequencies ($\Delta t$).
