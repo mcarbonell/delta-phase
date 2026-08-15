@@ -2,7 +2,7 @@
 
 **Document Type:** Strategic & Theoretical Vision Document  
 **Date:** August 2026  
-**Status:** Active Architectural Blueprint  
+**Status:** SPECULATIVE — INTERNAL ONLY
 
 ---
 
@@ -25,11 +25,11 @@ By unifying **Unitary Complex Phasors ($S^1 \subset \mathbb{C}$)**, **Hurwitz-St
                                                          │
          ┌────────────────────────┬──────────────────────┼───────────────────────┬────────────────────────┐
          ▼                        ▼                      ▼                       ▼                        ▼
- ┌───────────────┐        ┌───────────────┐      ┌───────────────┐       ┌───────────────┐        ┌───────────────┐
- │ 24/7 Lifelong │        │ Wave Hypothesis│      │  Continuous   │       │   Cyclic &    │        │  Multi-Hop    │
- │   Streaming   │        │ Pruning (NOT) │      │  Time Invar.  │       │  Topological  │        │ Latent Deduct.│
- │  O(1) Memory  │        │ (Interference)│      │ (s = σ + iω)  │       │ (Z_k Groups)  │        │ (Zero Tokens) │
- └───────────────┘        └───────────────┘      └───────────────┘       └───────────────┘        └───────────────┘
+ ┌────────────────┐        ┌────────────────┐      ┌────────────────┐      ┌────────────────┐      ┌────────────────┐
+ │ 24/7 Lifelong  │        │ Wave Hypothesis│      │  Continuous    │      │   Cyclic &     │      │  Multi-Hop     │
+ │   Streaming    │        │ Pruning (NOT)  │      │  Time Invar.   │      │  Topological   │      │ Latent Deduct. │
+ │  O(1) Memory   │        │ (Interference) │      │ (s = σ + iω)   │      │ (Z_k Groups)   │      │ (Zero Tokens)  │
+ └────────────────┘        └────────────────┘      └────────────────┘      └────────────────┘      └────────────────┘
 ```
 
 ---
