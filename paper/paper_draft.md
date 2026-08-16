@@ -1,8 +1,11 @@
 # DeltaPhase: Holographic Linear Recurrence via Unitary Complex Phase Dynamics, Integer Phasor Quantization, and Continuous-Time Laplace Cores
 
-**Authors:** Research Draft / Anonymous Authors  
+**Status:** Research Draft / SPECULATIVE — INTERNAL USE ONLY  
 **Target Venue:** International Conference on Learning Representations (ICLR) / Neural Information Processing Systems (NeurIPS)  
-**Artifact Repository:** `https://github.com/your-username/delta-phase`  
+**Date:** August 2026  
+**Authors:** Mario Raúl Carbonell Martínez (Independent Researcher)  
+**arXiv:** [Insert arXiv link here]  
+**GitHub:** `https://github.com/mcarbonell/delta-phase`  
 
 ---
 
@@ -86,7 +89,7 @@ Plate (1995) formulated circular convolution as element-wise phasor multiplicati
            ▼                               ▼
    ┌────────────────────────────────────────────────────────┐
    │     Parallel Chunkwise WY Complex Solve (T_mat)        │
-   │           M_t = M_{t-1} + β_t (e_t ⊗ K_t)              │
+   │           M_t = M_{t-1} + β_t (e_t ⊗ K_t)             │
    │          out_t = 1/d_k · Re(M_t · conj(Q_t))           │
    └──────────────────────┬─────────────────────────────────┘
                           │
