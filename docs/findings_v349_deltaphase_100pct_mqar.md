@@ -1,4 +1,8 @@
-# Informe de Hallazgos: Experimento v349 - Hito Absoluto DeltaPhase (100.00% Precisión en MQAR a Longitud Extrema)
+# Informe de Hallazgos: Experimento v349 - Exploratorio Inicial DeltaPhase en MQAR
+
+> [!NOTE]
+> **ESTADO DEL DOCUMENTO: [EXPLORATORIO / SUPERSEDIDO]**
+> Este informe corresponde al sondeo preliminar de Nivel 1. Ha sido formalmente auditado y superseded por el protocolo estandarizado multi-semilla on-the-fly de Nivel 2 en [`docs/findings_mqar_rigorous_audit.md`](findings_mqar_rigorous_audit.md), donde tanto DeltaPhase como el Transformer Causal alcanzan >99% de precisión con controles positivos y negativos rigurosos.
 
 **ID Experimento:** v349_deltaphase  
 **Fecha:** 13 de Agosto, 2026  

@@ -106,17 +106,24 @@ Beyond incremental speedups, DeltaPhase may unlock qualitative capabilities impo
 
 ---
 
-## 📊 Empirical Benchmarks: 100.00% MQAR Solution & Head-to-Head
+## 📊 Empirical Benchmarks: Certified MQAR Solution & Head-to-Head
 
-### 1. Literature Standard Multi-Query Associative Recall (MQAR v349)
-Evaluated under the standard literature benchmark (Zoology / H3 / Anthropic Circuits) comparing DeltaPhase against the Anthropic 2-layer Causal Transformer (`CausalInductionTransformer`):
+### 1. Literature Standard Multi-Query Associative Recall (Certified Level 2 MQAR Audit)
+Evaluated under the standardized literature protocol (Zoology — Arora et al. 2023 / H3) using dynamic *on-the-fly* sequences with **5 independent seeds** (`[42, 137, 2024, 7, 999]`, Mean ± SE), early stopping at $\ge 99.5\%$, and zero-shot length extrapolation up to $4\times$ ($L=1024$) ([`docs/findings_mqar_rigorous_audit.md`](docs/findings_mqar_rigorous_audit.md)):
 
-| Model / Architecture | State Memory | Loss (Epoch 30) | $L=128$ (Train) | $L=256$ (Zero-Shot) | $L=512$ (Zero-Shot) |
-| :--- | :---: | :---: | :---: | :---: | :---: |
-| **Complex DeltaPhase Core** 🌟 | **$\mathbb{C}^{32 \times 32}$ Matrix** | **0.0007** 🌟 | **100.00%** 🌟 | **100.00%** 🌟 | **100.00%** 🌟 |
-| **Causal Induction Transformer** | Softmax $QK^T$ | 2.9391 | 15.25% | 17.50% | 15.00% |
+| Configuration | Model / Architecture | State Memory | In-Distribution ($L_{\text{train}}$) | OOD $2\times$ | OOD $4\times$ | Steps $>50\%$ | Steps $>95\%$ | Mean Time (s) |
+| :--- | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| **$N_{\text{pairs}}=8$** | **DeltaPhase (Complex)** 🌟 | **$\mathbb{C}^{32 \times 32}$ Matrix** | **98.49 ± 0.30%** 🌟 | **98.29 ± 0.26%** 🌟 | **98.38 ± 0.28%** 🌟 | 410.0 | 650.0 | 429.3s |
+| ($L_{\text{train}}=128$) | **Transformer Causal (MHA)** | Softmax $QK^T$ | **99.37 ± 0.08%** | **99.49 ± 0.05%** | **99.48 ± 0.08%** | **240.0** | **250.0** | **90.6s** |
+| | **Gated DeltaNet (Real)** | $\mathbb{R}^{32 \times 32}$ Matrix | 97.70 ± 0.42% | 97.44 ± 0.50% | 97.64 ± 0.51% | 1000.0 | 1230.0 | 184.7s |
+| **$N_{\text{pairs}}=16$** | **Transformer Causal (MHA)** | Softmax $QK^T$ | **99.61 ± 0.05%** | **99.65 ± 0.02%** | **99.64 ± 0.02%** | **280.0** | **300.0** | **41.1s** |
+| ($L_{\text{train}}=128$) | **DeltaPhase (Complex)** 🌟 | **$\mathbb{C}^{32 \times 32}$ Matrix** | **99.16 ± 0.19%** 🌟 | **99.14 ± 0.17%** 🌟 | **99.19 ± 0.20%** 🌟 | 580.0 | 750.0 | 343.2s |
+| | **Gated DeltaNet (Real)** | $\mathbb{R}^{32 \times 32}$ Matrix | 97.33 ± 0.41% | 97.52 ± 0.34% | 97.52 ± 0.32% | 810.0 | 1090.0 | 185.6s |
+| **$N_{\text{pairs}}=32$** | **Transformer Causal (MHA)** | Softmax $QK^T$ | **99.60 ± 0.02%** | **99.62 ± 0.03%** | **99.62 ± 0.02%** | **350.0** | **380.0** | **90.0s** |
+| ($L_{\text{train}}=256$) | **DeltaPhase (Complex)** 🌟 | **$\mathbb{C}^{32 \times 32}$ Matrix** | **98.81 ± 0.29%** 🌟 | **98.82 ± 0.28%** 🌟 | **98.82 ± 0.29%** 🌟 | **910.0** | **1120.0** | 756.7s |
+| | **Gated DeltaNet (Real)** 💥 | $\mathbb{R}^{32 \times 32}$ Matrix | 75.99 ± 16.41% | 75.92 ± 16.40% | 76.06 ± 16.39% | 1210.0 | 1370.0 | 373.8s |
 
-> **Key Finding:** DeltaPhase achieves **100.00% exact accuracy** across all sequence lengths ($L=128, 256, 512$) with zero signal degradation (Loss $0.0007$), whereas the Causal Induction Transformer stays capped at $15.00\%-17.50\%$.
+> **Key Certified Finding:** Under dense sequence capacity ($N_{\text{pairs}}=32$), real-valued Gated DeltaNet collapses to **$75.99\% \pm 16.41\%$** due to Euclidean memory crosstalk. In contrast, **DeltaPhase maintains $98.81\% \pm 0.29\%$ across all seeds and zero-shot lengths up to $L=1024$**, matching Softmax Transformers while operating with strictly recurrent $O(1)$ memory per token. Full audit logs and parameter inventories are available in [`docs/findings_mqar_rigorous_audit.md`](docs/findings_mqar_rigorous_audit.md).
 
 ### 2. Head-to-Head vs Real Gated DeltaNet ($d_k=32$)
 Direct head-to-head empirical evaluation (`scratch/run_head_to_head_dk32.py`) under fixed head dimension ($d_k=32, d_{\text{model}}=128$, 5 seeds, Mean ± SE):
@@ -167,17 +174,20 @@ Evaluates associative recall across context lengths from $512$ to $65,536$ token
 ### Run Head-to-Head, FP64 Gradcheck, Quantized Phasor, NIAH & Pointer Audits
 
 ```bash
-# 1. Double-Precision Gradcheck & Group Expressivity
+# 1. Certified Level 2 Multi-Query Associative Recall (MQAR) Benchmark (DeltaPhase vs Transformer vs DeltaNet)
+python tests/benchmark_rigorous_mqar.py --steps 1500 --seeds 42 137 2024 7 999 --pairs 8 16 32 --early-stop-acc 99.5
+
+# 2. Double-Precision Gradcheck & Group Expressivity
 python scratch/run_head_to_head_dk32.py
 python scratch/test_fp64_gradcheck.py
 
-# 2. Integer Quantized Phasor Engine (uint8 / uint16 ALU)
+# 3. Integer Quantized Phasor Engine (uint8 / uint16 ALU)
 python tests/test_quantized_phasors_poc.py
 
-# 3. Needle In A Haystack (NIAH) Selective Gating (512 to 65k tokens)
+# 4. Needle In A Haystack (NIAH) Selective Gating (512 to 65k tokens)
 python tests/test_selective_gating_niah.py
 
-# 4. Semi-Parametric Pointer-Augmented Token Buffer (Verbatim Code Copying)
+# 5. Semi-Parametric Pointer-Augmented Token Buffer (Verbatim Code Copying)
 python tests/test_pointer_augmented_memory_poc.py
 ```
 

@@ -1,58 +1,50 @@
-# Informe de Auditoría y Certificación: Benchmark Riguroso MQAR (Multi-Query Associative Recall)
+# Certificación Nivel 2: Benchmark Riguroso Multi-Semilla de MQAR (Multi-Query Associative Recall)
 
-**ID de Experimento:** `benchmark_rigorous_mqar`  
-**Fecha:** 16 de Agosto, 2026  
-**Proyecto:** DeltaPhase  
-**Ubicación:** `docs/findings_mqar_rigorous_audit.md`  
-**Datos Crudos:** `docs/rigorous_mqar_results.json`  
-**Nivel de Rigor:** Nivel 2 (Arnés Certificado On-The-Fly, Multi-Semilla, Control Iso-Paramétrico y Control Positivo RoPE)
+> **ESTADO: [ANCLA / CERTIFICADO NIVEL 2]**  
+> Protocolo experimental estandarizado con 5 semillas independientes (`42, 137, 2024, 7, 999`), datos puramente dinámicos *on-the-fly* (inmunes a memorización de batch), parada temprana (*early stopping* $\ge 99.5\%$), y barrido de capacidad ($N_{\text{pairs}} \in \{8, 16, 32\}$) y longitud ($L \in \{128, 256, 512, 1024\}$).
 
 ---
 
-## 0. Resumen Ejecutivo y Reconciliación Metodológica
+## 🏗️ Inventario de Arquitecturas y Parámetros
 
-Este benchmark audita y valida formalmente la capacidad de memoria asociativa multiconsulta (**MQAR - Multi-Query Associative Recall**) de **DeltaPhase**, corrigiendo todas las debilidades y sesgos detectados en iteraciones preliminares:
+Todos los modelos fueron evaluados con paridad dimensional ($d_{\text{model}}=128$, $n_{\text{heads}}=4$, $d_k=32$, $L_{\text{layers}}=2$, $V=514$, ventana convolucional local $k=4$ y embeddings posicionales absolutos):
 
-1. **Superación del Sesgo de Dataset Estático:** Todos los lotes de entrenamiento y evaluación se generan dinámicamente al vuelo (*on-the-fly*), garantizando que los modelos nunca ven la misma secuencia dos veces y eliminando cualquier posibilidad de memorización posicional.
-2. **Supervisión Densa Multi-Consulta (Estándar Zoology / H3):** Cada secuencia contiene $N_{\text{pairs}}$ pares clave-valor en la primera mitad y $N_{\text{pairs}}$ consultas permutadas aleatoriamente en la segunda mitad. La pérdida y la precisión se calculan estrictamente sobre todas las posiciones de consulta.
-3. **Aislamiento del Beneficio Fasorial Complejo ($\mathbb{C}^{d_k \times d_k}$ vs $\mathbb{R}^{d_k \times d_k}$):** Comparación directa con **Gated DeltaNet Real** bajo idénticos hiperparámetros y optimizador.
-4. **Control Positivo RoPE Transformer:** Inclusión de un Transformer Causal con Rotary Embeddings (RoPE) para evaluar la dinámica de inducción asociativa cuadrática.
-
----
-
-## 1. Resultados Empíricos Medidos (Media ± Error Estándar)
-
-Evaluación realizada sobre $n=2$ semillas independientes (`seed=42`, `seed=137`), $800$ pasos de entrenamiento dinámico por modelo, batch size $32$, vocabulario $V=256$, $d_{\text{model}}=128$, $n_{\text{heads}}=4$ ($d_k=32$).
-
-### Tabla 1: Precisión en Evaluación Retenida (*Held-Out*) por Longitud de Secuencia ($L$)
-
-| $N_{\text{pairs}}$ | Arquitectura / Modelo | Espacio de Memoria | $L=128$ (Train) | $L=256$ (Zero-Shot $2\times$) | $L=512$ (Zero-Shot $4\times$) |
-| :---: | :--- | :---: | :---: | :---: | :---: |
-| **8** | **DeltaPhase Holographic Core** 🌟 | $\mathbb{C}^{32 \times 32}$ ($S^1$) | **$99.96 \pm 0.01\%$** 🌟 | **$99.97 \pm 0.01\%$** 🌟 | **$99.98 \pm 0.01\%$** 🌟 |
-| **8** | Gated DeltaNet Real Baseline | $\mathbb{R}^{32 \times 32}$ | $98.35 \pm 1.17\%$ | $98.35 \pm 1.17\%$ | $98.27 \pm 1.22\%$ |
-| **8** | Causal Transformer (RoPE) | Softmax $O(N^2)$ | $11.19 \pm 1.44\%$ | $11.11 \pm 1.77\%$ | $10.33 \pm 2.09\%$ |
-| **16** | **DeltaPhase Holographic Core** 🌟 | $\mathbb{C}^{32 \times 32}$ ($S^1$) | **$100.00 \pm 0.00\%$** 🌟 | **$100.00 \pm 0.00\%$** 🌟 | **$99.99 \pm 0.00\%$** 🌟 |
-| **16** | Gated DeltaNet Real Baseline | $\mathbb{R}^{32 \times 32}$ | $95.16 \pm 3.24\%$ | $95.15 \pm 3.32\%$ | $95.31 \pm 3.23\%$ |
-| **16** | Causal Transformer (RoPE) | Softmax $O(N^2)$ | $6.79 \pm 0.22\%$ | $6.73 \pm 0.31\%$ | $5.76 \pm 0.11\%$ |
+| Modelo | Espacio de Memoria | Parámetros Totales | Parámetros Entrenables | Complejidad de Inferencia |
+| :--- | :---: | :---: | :---: | :---: |
+| **DeltaPhase** | Complejo $\mathbb{C}^{32 \times 32}$ ($S^1$) | 935,696 | 935,696 | $O(1)$ por token / $O(N)$ secuencia |
+| **Gated DeltaNet** | Real $\mathbb{R}^{32 \times 32}$ | 1,054,218 | 1,054,218 | $O(1)$ por token / $O(N)$ secuencia |
+| **Transformer Causal** | Softmax $QK^T$ | 1,054,210 | 1,054,210 | $O(N)$ por token / $O(N^2)$ secuencia |
 
 ---
 
-## 2. Hallazgos Científicos y Conclusiones
+## 📊 Tabla Resumen Certificada Nivel 2 (Media ± Error Estándar, $n=5$ semillas independientes)
 
-### 2.1. Superioridad y Estabilidad del Espacio Fasorial Complejo $\mathbb{C}$
-- **Cero Varianza y Retención Perfecta:** DeltaPhase alcanza **$100.00 \pm 0.00\%$** de precisión en $N_{\text{pairs}}=16$ con un error estándar nulo entre semillas ($SE=0.00\%$).
-- **Mitigación del Memory Crosstalk:** Al incrementar la densidad de pares de 8 a 16, el modelo en espacio real (**Gated DeltaNet**) sufre una degradación de precisión ($98.35\% \to 95.16\%$) y una mayor inestabilidad entre semillas ($SE = 3.24\%$, con caídas a $90.58\%$ en `seed=137`), mientras que **DeltaPhase en $\mathbb{C}$ se mantiene inmutable en el $100.00\%$**.
-- **Explicación Mecanicista:** La proyección unitaria en el círculo $S^1$ ($\text{Re}(K^T \bar{Q})/d_k$) proporciona quasi-ortogonalidad distributiva, impidiendo que la acumulación de gradientes de error y actualizaciones delta colisionen en el subespacio euclídeo.
-
-### 2.2. Invarianza a la Extrapolación de Longitud ($L=128 \to 512$)
-- Tanto DeltaPhase como Gated DeltaNet retienen exactamente el mismo nivel de precisión al duplicar ($L=256$) o cuadruplicar ($L=512$) la longitud de contexto de forma *zero-shot*, confirmando que la regla delta chunkwise es matemáticamente invariante a la distancia temporal entre almacenamiento y consulta.
-
-### 2.3. Dinámica de Aprendizaje de Transformers con Atención Cuadrática
-- En este régimen de supervisión densa multi-consulta y 800 pasos, el Transformer Softmax con RoPE optimiza con mayor lentitud (11.19% y 6.79%), reflejando que formar circuitos de cabezas de inducción distribuidas en atención densa requiere significativamente más pasos de optimización que la escritura asociativa explícita de la regla delta matricial.
+| Configuración | Modelo | In-Distribution ($L_{\text{train}}$) | OOD $2\times$ | OOD $4\times$ | Pasos $>50\%$ | Pasos $>95\%$ | Tiempo Medio (s) |
+| :--- | :--- | :---: | :---: | :---: | :---: | :---: | :---: |
+| **$N_{\text{pairs}}=8$** | **DeltaPhase (Complejo)** | $98.49 \pm 0.30\%$ | $98.29 \pm 0.26\%$ | $98.38 \pm 0.28\%$ | 410.0 | 650.0 | 429.3s |
+| ($L_{\text{train}}=128$) | **Transformer Causal (MHA)** | **$99.37 \pm 0.08\%$** | **$99.49 \pm 0.05\%$** | **$99.48 \pm 0.08\%$** | **240.0** | **250.0** | **90.6s** |
+| | **Gated DeltaNet (Real)** | $97.70 \pm 0.42\%$ | $97.44 \pm 0.50\%$ | $97.64 \pm 0.51\%$ | 1000.0 | 1230.0 | 184.7s |
+| **$N_{\text{pairs}}=16$** | **Transformer Causal (MHA)** | **$99.61 \pm 0.05\%$** | **$99.65 \pm 0.02\%$** | **$99.64 \pm 0.02\%$** | **280.0** | **300.0** | **41.1s** |
+| ($L_{\text{train}}=128$) | **DeltaPhase (Complejo)** | $99.16 \pm 0.19\%$ | $99.14 \pm 0.17\%$ | $99.19 \pm 0.20\%$ | 580.0 | 750.0 | 343.2s |
+| | **Gated DeltaNet (Real)** | $97.33 \pm 0.41\%$ | $97.52 \pm 0.34\%$ | $97.52 \pm 0.32\%$ | 810.0 | 1090.0 | 185.6s |
+| **$N_{\text{pairs}}=32$** | **Transformer Causal (MHA)** | **$99.60 \pm 0.02\%$** | **$99.62 \pm 0.03\%$** | **$99.62 \pm 0.02\%$** | **350.0** | **380.0** | **90.0s** |
+| ($L_{\text{train}}=256$) | **DeltaPhase (Complejo)** 🌟 | **$98.81 \pm 0.29\%$** 🌟 | **$98.82 \pm 0.28\%$** 🌟 | **$98.82 \pm 0.29\%$** 🌟 | **910.0** | **1120.0** | 756.7s |
+| | **Gated DeltaNet (Real)** 💥 | 75.99 ± 16.41% | 75.92 ± 16.40% | 76.06 ± 16.39% | 1210.0 | 1370.0 | 373.8s |
 
 ---
 
-## 3. Estado de Certificación
+## 🔬 Análisis Científico y Falsación Rigurosa
 
-- **Etiqueta del Hallazgo:** `[ANCLA]` (Certificado bajo arnés dinámico *on-the-fly* estandarizado Zoology MQAR, multi-semilla y con controles explícitos).
-- **Código ejecutable:** [`tests/benchmark_rigorous_mqar.py`](file:///c:/Users/mrcm_/Local/proj/algorithms/delta-phase/tests/benchmark_rigorous_mqar.py).
+### 1. El Baseline de Transformer Causal Está Plenamente Validado
+El Transformer de control positivo aprende los circuitos de inducción de forma consistente en las 5 semillas:
+- Cruza el $50\%$ en solo **240 a 350 pasos** y el $95\%$ en **250 a 380 pasos**, activando la parada temprana (*early stopping*) con una precisión superior al **$99.6\%$**.
+- Mantiene una generalización OOD perfecta a $L=1024$ ($4\times$ la longitud de entrenamiento).
+
+### 2. DeltaPhase Supera la Barrera de Crosstalk en Alta Capacidad ($N_{\text{pairs}}=32$)
+- En $N_{\text{pairs}}=32$, el modelo lineal real **Gated DeltaNet ($\mathbb{R}^{32 \times 32}$)** sufre una degradación severa por interferencia destructiva de memoria (*memory crosstalk*), cayendo a **$75.99\% \pm 16.41\%$** con gran inestabilidad entre semillas.
+- Por el contrario, **DeltaPhase ($\mathbb{C}^{32 \times 32}$ en $S^1$)** mantiene una precisión cuasi-perfecta y altamente estable de **$98.81\% \pm 0.29\%$** en todas las semillas y longitudes hasta $L=1024$, demostrando experimentalmente la ventaja fundamental de la cuasi-ortogonalidad fasorial en el círculo unitario complejo.
+
+### 3. Dinámica de Transición de Fase (*Grokking*)
+- **Transformer:** Transición súbita en ~250–350 pasos.
+- **DeltaPhase:** Convergencia suave y progresiva, cruzando el 50% en ~410–910 pasos y el 95% en ~650–1120 pasos.
+- **Gated DeltaNet:** Convergencia más lenta (1000–1370 pasos) y colapso de capacidad al sobrepasar la densidad crítica de pares.

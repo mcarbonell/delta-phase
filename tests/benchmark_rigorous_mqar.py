@@ -35,56 +35,59 @@ from delta_phase.layers import DeltaPhaseHolographicBlock, ShortCausalConv1D
 # 1. GENERADOR DE DATOS DINÁMICO ON-THE-FLY (ZOOLOGY / H3 MQAR)
 # ==============================================================================
 
+# ==============================================================================
+# 1. GENERADOR DE DATOS DINÁMICO ON-THE-FLY (ZOOLOGY / H3 MQAR)
+# ==============================================================================
+
+PAD_ID = 0
+QUERY_MARKER = 1
+TOKEN_OFFSET = 2
+NUM_CONTENT_TOKENS = 512
+VOCAB_SIZE = TOKEN_OFFSET + NUM_CONTENT_TOKENS  # 514
+
 def generate_zoology_mqar_batch(
     batch_size: int = 32,
     seq_len: int = 128,
     num_pairs: int = 8,
-    vocab_size: int = 256,
+    vocab_size: int = VOCAB_SIZE,
     device: str = 'cpu'
 ):
+    num_tokens = vocab_size - TOKEN_OFFSET
     """
-    Genera un lote dinámico e inédito para Multi-Query Associative Recall (MQAR).
-    - Keys: tokens del rango [2, 2 + (vocab_size-2)//2 - 1]
-    - Values: tokens del rango [2 + (vocab_size-2)//2, vocab_size - 1]
-    - Primera mitad: inserción de num_pairs pares clave-valor espaciados.
-    - Segunda mitad: inserción de num_pairs consultas aleatorias de las claves almacenadas.
-    - targets: tensor con -100 en todas partes excepto en la posición de cada query, donde el target es el valor asociado.
+    Genera un lote dinámico e inédito para Multi-Query Associative Recall (MQAR)
+    según el estándar certificado de la literatura (Zoology - Arora et al. 2023):
+    - Pares K-V contiguos: [K_0, V_0, K_1, V_1, ..., K_m, V_m]
+    - Consultas explícitas con marcador: [..., QUERY_MARKER, K_target] -> Objetivo en target: V_target.
+    - Loss y Accuracy evaluadas estrictamente en las posiciones de respuesta (targets != -100).
     """
-    half_len = seq_len // 2
-    assert num_pairs * 2 <= half_len, f"Demasiados pares ({num_pairs}) para half_len={half_len}"
+    gap = 2
+    tokens_needed = 2 * num_pairs
+    assert 2 * num_pairs + gap + 2 * num_pairs <= seq_len, f"Demasiados pares ({num_pairs}) para longitud L={seq_len}"
     
-    num_key_candidates = (vocab_size - 2) // 2
-    key_start = 2
-    val_start = key_start + num_key_candidates
-    val_end = vocab_size
+    rand_t = torch.rand(batch_size, num_tokens, device=device)
+    sampled = torch.argsort(rand_t, dim=-1)[:, :tokens_needed] + TOKEN_OFFSET
+    keys = sampled[:, :num_pairs]
+    vals = sampled[:, num_pairs:]
     
-    tokens = torch.zeros(batch_size, seq_len, dtype=torch.long, device=device)
-    targets = torch.full((batch_size, seq_len), -100, dtype=torch.long, device=device)
+    x = torch.full((batch_size, seq_len), PAD_ID, dtype=torch.long, device=device)
+    y = torch.full((batch_size, seq_len), -100, dtype=torch.long, device=device)
     
-    pair_spacing = half_len // num_pairs
-    query_spacing = (seq_len - half_len) // num_pairs
+    # 1. Almacenar pares clave-valor contiguos
+    kv = torch.stack([keys, vals], dim=2).view(batch_size, 2 * num_pairs)
+    x[:, :2 * num_pairs] = kv
     
-    for b in range(batch_size):
-        # 1. Muestreo de pares únicos para este sample
-        chosen_keys = torch.randperm(num_key_candidates)[:num_pairs] + key_start
-        chosen_vals = torch.randint(val_start, val_end, (num_pairs,))
-        
-        # 2. Insertar pares en la primera mitad
-        for i in range(num_pairs):
-            pos_k = i * pair_spacing
-            pos_v = pos_k + 1
-            tokens[b, pos_k] = chosen_keys[i]
-            tokens[b, pos_v] = chosen_vals[i]
-            
-        # 3. Intercalar consultas aleatorias en la segunda mitad
-        perm = torch.randperm(num_pairs)
-        for j in range(num_pairs):
-            idx = perm[j]
-            q_pos = half_len + j * query_spacing
-            tokens[b, q_pos] = chosen_keys[idx]
-            targets[b, q_pos] = chosen_vals[idx] # El modelo debe predecir el valor en la posición de consulta
-            
-    return tokens, targets
+    # 2. Consultas aleatorias intercaladas en la segunda mitad
+    q_perm = torch.argsort(torch.rand(batch_size, num_pairs, device=device), dim=-1)
+    query_keys = torch.gather(keys, 1, q_perm)
+    query_vals = torch.gather(vals, 1, q_perm)
+    
+    gap = 2
+    pos_q = (2 * num_pairs + gap + 2 * torch.arange(num_pairs, device=device)).unsqueeze(0).expand(batch_size, -1)
+    
+    x.scatter_(1, pos_q, QUERY_MARKER)
+    x.scatter_(1, pos_q + 1, query_keys)
+    y.scatter_(1, pos_q + 1, query_vals)
+    return x, y
 
 
 # ==============================================================================
@@ -93,31 +96,23 @@ def generate_zoology_mqar_batch(
 
 # --- A. DeltaPhase Model ---
 class DeltaPhaseMQAR(nn.Module):
-    def __init__(self, vocab_size: int = 256, d_model: int = 128, n_heads: int = 4, chunk_size: int = 32, num_layers: int = 2):
+    def __init__(self, vocab_size: int = VOCAB_SIZE, d_model: int = 128, n_heads: int = 4, chunk_size: int = 32, num_layers: int = 2, max_len: int = 4096):
         super().__init__()
         self.vocab_size = vocab_size
         self.d_model = d_model
         self.embedding = nn.Embedding(vocab_size, d_model)
+        self.pos_emb = nn.Embedding(max_len, d_model)
         self.blocks = nn.ModuleList([
             DeltaPhaseHolographicBlock(d_model=d_model, n_heads=n_heads, chunk_size=chunk_size)
             for _ in range(num_layers)
         ])
-        self.norm = nn.LayerNorm(d_model)
-        self.head = nn.Linear(d_model, vocab_size, bias=False)
-        self._init_weights()
-
-    def _init_weights(self):
-        for m in self.modules():
-            if isinstance(m, nn.Linear):
-                nn.init.normal_(m.weight, std=0.02)
-            elif isinstance(m, nn.Embedding):
-                nn.init.normal_(m.weight, std=0.02)
+        self.head = nn.Linear(d_model, vocab_size)
 
     def forward(self, x):
-        h = self.embedding(x)
+        pos = torch.arange(x.shape[1], device=x.device).unsqueeze(0)
+        h = self.embedding(x) + self.pos_emb(pos)
         for block in self.blocks:
             h, _ = block(h)
-        h = self.norm(h)
         logits = self.head(h)
         return logits
 
@@ -147,9 +142,9 @@ class RealGatedDeltaNetBlock(nn.Module):
         
         # Standard MLP
         self.mlp = nn.Sequential(
-            nn.Linear(d_model, d_model * 2),
-            nn.SiLU(),
-            nn.Linear(d_model * 2, d_model)
+            nn.Linear(d_model, d_model * 4),
+            nn.GELU(),
+            nn.Linear(d_model * 4, d_model)
         )
 
     def forward(self, x):
@@ -211,119 +206,64 @@ class RealGatedDeltaNetBlock(nn.Module):
         return x
 
 class RealGatedDeltaNetMQAR(nn.Module):
-    def __init__(self, vocab_size: int = 256, d_model: int = 128, n_heads: int = 4, chunk_size: int = 32, num_layers: int = 2):
+    def __init__(self, vocab_size: int = VOCAB_SIZE, d_model: int = 128, n_heads: int = 4, chunk_size: int = 32, num_layers: int = 2, max_len: int = 4096):
         super().__init__()
         self.embedding = nn.Embedding(vocab_size, d_model)
+        self.pos_emb = nn.Embedding(max_len, d_model)
         self.blocks = nn.ModuleList([
             RealGatedDeltaNetBlock(d_model=d_model, n_heads=n_heads, chunk_size=chunk_size)
             for _ in range(num_layers)
         ])
-        self.norm = nn.LayerNorm(d_model)
-        self.head = nn.Linear(d_model, vocab_size, bias=False)
-        self._init_weights()
-
-    def _init_weights(self):
-        for m in self.modules():
-            if isinstance(m, nn.Linear):
-                nn.init.normal_(m.weight, std=0.02)
-            elif isinstance(m, nn.Embedding):
-                nn.init.normal_(m.weight, std=0.02)
+        self.head = nn.Linear(d_model, vocab_size)
 
     def forward(self, x):
-        h = self.embedding(x)
+        pos = torch.arange(x.shape[1], device=x.device).unsqueeze(0)
+        h = self.embedding(x) + self.pos_emb(pos)
         for block in self.blocks:
             h = block(h)
-        h = self.norm(h)
         return self.head(h)
 
 
-# --- C. RoPE Causal Transformer Positive Control (Softmax O(N^2)) ---
-class RotaryEmbedding(nn.Module):
-    def __init__(self, dim: int, max_seq_len: int = 4096):
+# --- C. Causal MHA Transformer Baseline (Softmax O(N^2)) ---
+class CausalMHABlock(nn.Module):
+    def __init__(self, d_model: int = 128, n_heads: int = 4, conv_kernel_size: int = 4):
         super().__init__()
-        inv_freq = 1.0 / (10000 ** (torch.arange(0, dim, 2).float() / dim))
-        t = torch.arange(max_seq_len, dtype=torch.float)
-        freqs = torch.outer(t, inv_freq)
-        emb = torch.cat((freqs, freqs), dim=-1)
-        self.register_buffer('cos', emb.cos().unsqueeze(0).unsqueeze(0)) # (1, 1, L, D)
-        self.register_buffer('sin', emb.sin().unsqueeze(0).unsqueeze(0))
-
-    def _rotate_half(self, x):
-        x1, x2 = x[..., :x.shape[-1] // 2], x[..., x.shape[-1] // 2:]
-        return torch.cat((-x2, x1), dim=-1)
-
-    def forward(self, q, k):
-        L = q.shape[2]
-        cos, sin = self.cos[:, :, :L, :], self.sin[:, :, :L, :]
-        q_rot = (q * cos) + (self._rotate_half(q) * sin)
-        k_rot = (k * cos) + (self._rotate_half(k) * sin)
-        return q_rot, k_rot
-
-class RoPECausalAttentionBlock(nn.Module):
-    def __init__(self, d_model: int = 128, n_heads: int = 4):
-        super().__init__()
-        self.d_model = d_model
-        self.n_heads = n_heads
-        self.head_dim = d_model // n_heads
-        self.scale = 1.0 / math.sqrt(self.head_dim)
-        
+        self.conv = ShortCausalConv1D(d_model, kernel_size=conv_kernel_size)
+        self.mha = nn.MultiheadAttention(embed_dim=d_model, num_heads=n_heads, batch_first=True)
         self.norm1 = nn.LayerNorm(d_model)
         self.norm2 = nn.LayerNorm(d_model)
-        self.q_proj = nn.Linear(d_model, d_model, bias=False)
-        self.k_proj = nn.Linear(d_model, d_model, bias=False)
-        self.v_proj = nn.Linear(d_model, d_model, bias=False)
-        self.out_proj = nn.Linear(d_model, d_model, bias=False)
-        
-        self.rope = RotaryEmbedding(self.head_dim)
-        self.mlp = nn.Sequential(
-            nn.Linear(d_model, d_model * 2),
-            nn.SiLU(),
-            nn.Linear(d_model * 2, d_model)
+        self.ffn = nn.Sequential(
+            nn.Linear(d_model, d_model * 4),
+            nn.GELU(),
+            nn.Linear(d_model * 4, d_model)
         )
 
     def forward(self, x):
-        B, L, D = x.shape
-        normed = self.norm1(x)
-        
-        q = self.q_proj(normed).view(B, L, self.n_heads, self.head_dim).transpose(1, 2)
-        k = self.k_proj(normed).view(B, L, self.n_heads, self.head_dim).transpose(1, 2)
-        v = self.v_proj(normed).view(B, L, self.n_heads, self.head_dim).transpose(1, 2)
-        
-        q, k = self.rope(q, k)
-        
-        attn_weights = torch.matmul(q, k.transpose(-1, -2)) * self.scale
+        x = self.conv(x)
+        res = x
+        norm_x = self.norm1(x)
+        L = x.shape[1]
         causal_mask = torch.triu(torch.full((L, L), float('-inf'), device=x.device), diagonal=1)
-        attn_weights = F.softmax(attn_weights + causal_mask, dim=-1)
-        
-        attn_out = torch.matmul(attn_weights, v).transpose(1, 2).reshape(B, L, D)
-        x = x + self.out_proj(attn_out)
-        x = x + self.mlp(self.norm2(x))
-        return x
+        attn_out, _ = self.mha(norm_x, norm_x, norm_x, attn_mask=causal_mask, is_causal=False)
+        x = res + attn_out
+        return x + self.ffn(self.norm2(x))
 
-class RoPECausalTransformerMQAR(nn.Module):
-    def __init__(self, vocab_size: int = 256, d_model: int = 128, n_heads: int = 4, num_layers: int = 2):
+class CausalTransformerMQAR(nn.Module):
+    def __init__(self, vocab_size: int = VOCAB_SIZE, d_model: int = 128, n_heads: int = 4, num_layers: int = 2, max_len: int = 4096):
         super().__init__()
         self.embedding = nn.Embedding(vocab_size, d_model)
+        self.pos_emb = nn.Embedding(max_len, d_model)
         self.blocks = nn.ModuleList([
-            RoPECausalAttentionBlock(d_model=d_model, n_heads=n_heads)
+            CausalMHABlock(d_model=d_model, n_heads=n_heads)
             for _ in range(num_layers)
         ])
-        self.norm = nn.LayerNorm(d_model)
-        self.head = nn.Linear(d_model, vocab_size, bias=False)
-        self._init_weights()
-
-    def _init_weights(self):
-        for m in self.modules():
-            if isinstance(m, nn.Linear):
-                nn.init.normal_(m.weight, std=0.02)
-            elif isinstance(m, nn.Embedding):
-                nn.init.normal_(m.weight, std=0.02)
+        self.head = nn.Linear(d_model, vocab_size)
 
     def forward(self, x):
-        h = self.embedding(x)
+        pos = torch.arange(x.shape[1], device=x.device).unsqueeze(0)
+        h = self.embedding(x) + self.pos_emb(pos)
         for block in self.blocks:
             h = block(h)
-        h = self.norm(h)
         return self.head(h)
 
 
@@ -331,7 +271,7 @@ class RoPECausalTransformerMQAR(nn.Module):
 # 3. RUTINAS DE EVALUACIÓN Y ENTRENAMIENTO DINÁMICO
 # ==============================================================================
 
-def evaluate_mqar_accuracy(model, num_eval_batches=15, batch_size=32, seq_len=128, num_pairs=8, vocab_size=256, device='cpu'):
+def evaluate_mqar_accuracy(model, num_eval_batches=15, batch_size=32, seq_len=128, num_pairs=8, vocab_size=VOCAB_SIZE, device='cpu'):
     model.eval()
     total_correct = 0
     total_queries = 0
@@ -345,15 +285,13 @@ def evaluate_mqar_accuracy(model, num_eval_batches=15, batch_size=32, seq_len=12
                 vocab_size=vocab_size,
                 device=device
             )
-            logits = model(tokens) # (B, L, V)
+            logits = model(tokens)
             preds = torch.argmax(logits, dim=-1)
             
             mask = (targets != -100)
             correct = (preds[mask] == targets[mask]).sum().item()
-            num_q = mask.sum().item()
-            
             total_correct += correct
-            total_queries += num_q
+            total_queries += mask.sum().item()
             
     return (total_correct / max(total_queries, 1)) * 100.0
 
@@ -371,21 +309,21 @@ def format_duration(seconds: float) -> str:
 def train_mqar_model(
     name: str,
     model: nn.Module,
-    total_steps: int = 1000,
+    total_steps: int = 1500,
     batch_size: int = 32,
     seq_len: int = 128,
     num_pairs: int = 8,
-    vocab_size: int = 256,
-    lr: float = 2e-3,
+    vocab_size: int = VOCAB_SIZE,
+    lr: float = 3e-3,
     device: str = 'cpu',
-    log_interval: int = 100,
+    log_interval: int = 50,
+    early_stop_acc: float = 99.5,
     global_model_idx: int = 1,
     total_models: int = 1,
     global_start_time: float = 0.0
 ):
     model = model.to(device)
-    optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=1e-4)
-    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=total_steps, eta_min=1e-5)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=0.0)
     criterion = nn.CrossEntropyLoss(ignore_index=-100)
     
     model.train()
@@ -393,10 +331,14 @@ def train_mqar_model(
     
     elapsed_global = time.time() - global_start_time if global_start_time > 0 else 0
     print(f"\n[{time.strftime('%H:%M:%S')}] 🚀 [Modelo {global_model_idx}/{total_models}] {name}", flush=True)
-    print(f"   Config: L={seq_len}, N_pairs={num_pairs}, {total_steps} pasos | Tiempo global transcurrido: {format_duration(elapsed_global)}", flush=True)
+    print(f"   Config: L={seq_len}, N_pairs={num_pairs}, max {total_steps} pasos | Tiempo global transcurrido: {format_duration(elapsed_global)}", flush=True)
     
     running_loss = 0.0
     step_times = []
+    step_to_50 = None
+    step_to_95 = None
+    final_step = total_steps
+    early_stopped = False
     
     for step in range(1, total_steps + 1):
         t0 = time.time()
@@ -414,7 +356,6 @@ def train_mqar_model(
         loss.backward()
         torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
         optimizer.step()
-        scheduler.step()
         
         dt = time.time() - t0
         step_times.append(dt)
@@ -430,11 +371,15 @@ def train_mqar_model(
                 seq_len=seq_len, num_pairs=num_pairs, vocab_size=vocab_size, device=device
             )
             
+            if step_to_50 is None and val_acc >= 50.0:
+                step_to_50 = step
+            if step_to_95 is None and val_acc >= 95.0:
+                step_to_95 = step
+                
             avg_step_time = sum(step_times) / len(step_times)
             steps_left = total_steps - step
             model_eta = steps_left * avg_step_time
             
-            # Estimación global de tiempo restante
             models_left = total_models - global_model_idx
             approx_total_eta = model_eta + (models_left * (total_steps * avg_step_time))
             
@@ -447,11 +392,27 @@ def train_mqar_model(
                 flush=True
             )
             running_loss = 0.0
+            
+            if early_stop_acc is not None and val_acc >= early_stop_acc:
+                final_step = step
+                early_stopped = True
+                print(f"   🎯 [EARLY STOPPING] Alcanzado {val_acc:.2f}% (>= {early_stop_acc:.1f}%) en paso {step}! Finalizando entrenamiento temprano.", flush=True)
+                break
+                
             model.train()
             
     wallclock = time.time() - t_start
-    print(f"   ✨ [{name}] completado en {format_duration(wallclock)} ({wallclock:.1f}s)", flush=True)
-    return model, wallclock
+    status_str = f"completado en paso {final_step} (Early Stop)" if early_stopped else f"completado en {total_steps} pasos"
+    print(f"   ✨ [{name}] {status_str} en {format_duration(wallclock)} ({wallclock:.1f}s)", flush=True)
+    
+    metrics = {
+        "wallclock": wallclock,
+        "final_step": final_step,
+        "step_to_50": step_to_50 if step_to_50 is not None else total_steps,
+        "step_to_95": step_to_95 if step_to_95 is not None else total_steps,
+        "early_stopped": early_stopped
+    }
+    return model, metrics
 
 
 def print_architecture_inventory(name: str, model: nn.Module, d_model: int, n_heads: int, d_k: int, vocab_size: int):
@@ -471,61 +432,69 @@ def print_architecture_inventory(name: str, model: nn.Module, d_model: int, n_he
 # ==============================================================================
 
 def run_rigorous_mqar_suite(
-    seeds: list = [42, 137, 2024],
+    seeds: list = [42, 137, 2024, 7, 999],
     pair_sweep: list = [8, 16, 32],
-    eval_lengths: list = [128, 256, 512],
-    steps_per_train: int = 3000,
+    steps_per_train: int = 1500,
+    early_stop_acc: float = 99.5,
     device: str = 'cpu'
 ):
     global_start_time = time.time()
-    models_to_test = ["DeltaPhase_Complex", "GatedDeltaNet_Real", "Transformer_RoPE"]
+    models_to_test = ["DeltaPhase_Complex", "GatedDeltaNet_Real", "Transformer_Causal"]
     total_models = len(pair_sweep) * len(models_to_test) * len(seeds)
     
-    vocab_size = 256
+    vocab_size = VOCAB_SIZE
     d_model = 128
     n_heads = 4
     d_k = d_model // n_heads
     num_layers = 2
     
     # 1. Cabecera Completa con Metadatos, Explicación e Inventario
-    print("=" * 95, flush=True)
-    print("🌟 PROTOCOLO RIGUROSO DE EVALUACIÓN MQAR (MULTI-QUERY ASSOCIATIVE RECALL)", flush=True)
-    print("=" * 95, flush=True)
-    print(f"  • Propósito:           Evaluación de retención y memoria asociativa multi-consulta densa", flush=True)
-    print(f"                         Comparación iso-paramétrica de DeltaPhase vs Gated DeltaNet vs RoPE Transformer", flush=True)
+    print("=" * 105, flush=True)
+    print("🌟 PROTOCOLO RIGUROSO DE CERTIFICACIÓN MQAR NIVEL 2 (MULTI-QUERY ASSOCIATIVE RECALL)", flush=True)
+    print("=" * 105, flush=True)
+    print(f"  • Propósito:           Certificación formal Nivel 2 de retención y velocidad de convergencia (grokking)", flush=True)
+    print(f"                         Comparación iso-paramétrica multi-semilla (n={len(seeds)}) de DeltaPhase vs Gated DeltaNet vs Transformer", flush=True)
     print(f"  • Dispositivo:         {device.upper()} ({platform.processor() or 'Multicore'})", flush=True)
     print(f"  • Fecha UTC:           {datetime.datetime.now(datetime.timezone.utc).isoformat()}", flush=True)
     print(f"  • Versión Python/Torch: Python {platform.python_version()} | PyTorch {torch.__version__}", flush=True)
-    print(f"  • Semillas:            {seeds} (n={len(seeds)})", flush=True)
+    print(f"  • Semillas ({len(seeds)}):      {seeds}", flush=True)
     print(f"  • Barrido de Pares:    {pair_sweep}", flush=True)
-    print(f"  • Longitudes Eval:     {eval_lengths}", flush=True)
-    print(f"  • Pasos de Train:      {steps_per_train} pasos on-the-fly por modelo", flush=True)
+    print(f"  • Max Pasos Train:     {steps_per_train} pasos on-the-fly por modelo (Early Stopping @ {early_stop_acc}%)", flush=True)
     print(f"  • Total ejecuciones:   {total_models} modelos individuales", flush=True)
-    print("-" * 95, flush=True)
+    print("-" * 105, flush=True)
     print("  📋 INVENTARIO COMPLETO DE ARQUITECTURAS A EVALUAR:", flush=True)
     
     sample_models = {
         "DeltaPhase_Complex (C^(32x32))": DeltaPhaseMQAR(vocab_size=vocab_size, d_model=d_model, n_heads=n_heads, num_layers=num_layers),
         "GatedDeltaNet_Real (R^(32x32))": RealGatedDeltaNetMQAR(vocab_size=vocab_size, d_model=d_model, n_heads=n_heads, num_layers=num_layers),
-        "Transformer_RoPE (Softmax O(N^2))": RoPECausalTransformerMQAR(vocab_size=vocab_size, d_model=d_model, n_heads=n_heads, num_layers=num_layers)
+        "Transformer_Causal (Softmax O(N^2))": CausalTransformerMQAR(vocab_size=vocab_size, d_model=d_model, n_heads=n_heads, num_layers=num_layers)
     }
     for name, m in sample_models.items():
         print_architecture_inventory(name, m, d_model=d_model, n_heads=n_heads, d_k=d_k, vocab_size=vocab_size)
-    print("=" * 95 + "\n", flush=True)
+    print("=" * 105 + "\n", flush=True)
     
     all_experiments = {}
     current_model_counter = 0
     
     for n_pairs in pair_sweep:
-        print(f"\n" + "#" * 95, flush=True)
-        print(f"🎯 BLOQUE DE CAPACIDAD: N_PAIRS = {n_pairs} PARES SIMULTÁNEOS", flush=True)
-        print("#" * 95, flush=True)
+        L_train = 128 if n_pairs <= 16 else 256
+        eval_lengths = [L_train, 2 * L_train, 4 * L_train]
         
-        all_experiments[f"pairs_{n_pairs}"] = {}
+        print(f"\n" + "#" * 105, flush=True)
+        print(f"🎯 BLOQUE DE CAPACIDAD: N_PAIRS = {n_pairs} PARES SIMULTÁNEOS (L_train = {L_train}, Eval = {eval_lengths})", flush=True)
+        print("#" * 105, flush=True)
+        
+        all_experiments[f"pairs_{n_pairs}"] = {
+            "L_train": L_train,
+            "eval_lengths": eval_lengths
+        }
         
         for model_key in models_to_test:
             all_experiments[f"pairs_{n_pairs}"][model_key] = {
                 "wallclocks": [],
+                "steps_to_50": [],
+                "steps_to_95": [],
+                "final_steps": [],
                 "length_accs": {L: [] for L in eval_lengths}
             }
             
@@ -539,27 +508,31 @@ def run_rigorous_mqar_suite(
                     model = DeltaPhaseMQAR(vocab_size=vocab_size, d_model=d_model, n_heads=n_heads, num_layers=num_layers)
                 elif model_key == "GatedDeltaNet_Real":
                     model = RealGatedDeltaNetMQAR(vocab_size=vocab_size, d_model=d_model, n_heads=n_heads, num_layers=num_layers)
-                elif model_key == "Transformer_RoPE":
-                    model = RoPECausalTransformerMQAR(vocab_size=vocab_size, d_model=d_model, n_heads=n_heads, num_layers=num_layers)
+                elif model_key == "Transformer_Causal":
+                    model = CausalTransformerMQAR(vocab_size=vocab_size, d_model=d_model, n_heads=n_heads, num_layers=num_layers)
                     
                 model_name = f"{model_key} [Seed {seed}]"
-                trained_model, wallclock = train_mqar_model(
+                trained_model, metrics = train_mqar_model(
                     name=model_name,
                     model=model,
                     total_steps=steps_per_train,
                     batch_size=32,
-                    seq_len=128,
+                    seq_len=L_train,
                     num_pairs=n_pairs,
                     vocab_size=vocab_size,
-                    lr=2e-3,
+                    lr=3e-3,
                     device=device,
-                    log_interval=100,
+                    log_interval=50,
+                    early_stop_acc=early_stop_acc,
                     global_model_idx=current_model_counter,
                     total_models=total_models,
                     global_start_time=global_start_time
                 )
                 
-                all_experiments[f"pairs_{n_pairs}"][model_key]["wallclocks"].append(wallclock)
+                all_experiments[f"pairs_{n_pairs}"][model_key]["wallclocks"].append(metrics["wallclock"])
+                all_experiments[f"pairs_{n_pairs}"][model_key]["steps_to_50"].append(metrics["step_to_50"])
+                all_experiments[f"pairs_{n_pairs}"][model_key]["steps_to_95"].append(metrics["step_to_95"])
+                all_experiments[f"pairs_{n_pairs}"][model_key]["final_steps"].append(metrics["final_step"])
                 
                 # Evaluación en todas las longitudes con secuencias inéditas on-the-fly
                 print(f"   🔍 Evaluando generalización en longitudes {eval_lengths}...", flush=True)
@@ -579,35 +552,46 @@ def run_rigorous_mqar_suite(
     # ==============================================================================
     # RESUMEN Y REPORTE ESTADÍSTICO FINAL
     # ==============================================================================
-    print("\n" + "=" * 95)
-    print("📊 TABLA RESUMEN CONSOLIDAD: MEDIA ± ERROR ESTÁNDAR (MULTI-SEMILLA)")
-    print("=" * 95)
-    # Dynamic column headers
-    header_cols = " | ".join([f"{'L=' + str(L):<16}" for L in eval_lengths])
-    print(f"{'Configuración':<22} | {'Modelo':<22} | {header_cols}")
-    print("-" * (48 + 19 * len(eval_lengths)))
+    print("\n" + "=" * 115)
+    print(f"📊 TABLA RESUMEN CERTIFICADA NIVEL 2: MEDIA ± ERROR ESTÁNDAR ({len(seeds)} SEMILLAS INDEPENDIENTES)")
+    print("=" * 115)
+    print(f"{'Configuración':<14} | {'Modelo':<20} | {'L_train Acc':<16} | {'OOD 2x Acc':<16} | {'OOD 4x Acc':<16} | {'Pasos >50%':<12} | {'Pasos >95%':<12} | {'Tiempo':<10}")
+    print("-" * 115)
     
     summary_report = {}
     
     for n_pairs in pair_sweep:
         summary_report[f"pairs_{n_pairs}"] = {}
-        for model_key in ["DeltaPhase_Complex", "GatedDeltaNet_Real", "Transformer_RoPE"]:
-            row_accs = {}
+        eval_lengths = all_experiments[f"pairs_{n_pairs}"]["eval_lengths"]
+        
+        for model_key in models_to_test:
+            row_data = all_experiments[f"pairs_{n_pairs}"][model_key]
+            
+            # Length accuracies
+            acc_cols = []
             for L in eval_lengths:
-                vals = all_experiments[f"pairs_{n_pairs}"][model_key]["length_accs"][L]
+                vals = row_data["length_accs"][L]
                 mean_v = float(np.mean(vals))
                 std_v = float(np.std(vals))
                 se_v = std_v / math.sqrt(len(vals)) if len(vals) > 1 else 0.0
-                row_accs[L] = (mean_v, se_v)
+                acc_cols.append(f"{mean_v:5.2f} ± {se_v:4.2f}%")
                 
+            s50_mean = float(np.mean(row_data["steps_to_50"]))
+            s95_mean = float(np.mean(row_data["steps_to_95"]))
+            t_mean = float(np.mean(row_data["wallclocks"]))
+            
             summary_report[f"pairs_{n_pairs}"][model_key] = {
-                f"L_{L}": f"{row_accs[L][0]:.2f} ± {row_accs[L][1]:.2f}%" for L in eval_lengths
+                f"L_{eval_lengths[0]}": acc_cols[0],
+                f"L_{eval_lengths[1]}": acc_cols[1],
+                f"L_{eval_lengths[2]}": acc_cols[2],
+                "mean_steps_to_50": s50_mean,
+                "mean_steps_to_95": s95_mean,
+                "mean_wallclock_sec": t_mean
             }
             
-            cols_str = " | ".join([f"{row_accs[L][0]:6.2f} ± {row_accs[L][1]:4.2f}%" for L in eval_lengths])
-            print(f"N_pairs={n_pairs:<14} | {model_key:<22} | {cols_str}")
+            print(f"N_pairs={n_pairs:<6} | {model_key:<20} | {acc_cols[0]:<16} | {acc_cols[1]:<16} | {acc_cols[2]:<16} | {s50_mean:<12.1f} | {s95_mean:<12.1f} | {t_mean:<8.1f}s")
             
-    print("=" * (48 + 19 * len(eval_lengths)))
+    print("=" * 115)
     
     # Guardar JSON con resultados crudos
     results_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "docs", "rigorous_mqar_results.json"))
@@ -616,7 +600,6 @@ def run_rigorous_mqar_suite(
             "date": datetime.datetime.now(datetime.timezone.utc).isoformat(),
             "seeds": seeds,
             "pair_sweep": pair_sweep,
-            "eval_lengths": eval_lengths,
             "raw_data": all_experiments,
             "summary": summary_report
         }, f, indent=2)
@@ -625,12 +608,12 @@ def run_rigorous_mqar_suite(
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description="Rigorous MQAR Benchmark Suite")
+    parser = argparse.ArgumentParser(description="Rigorous MQAR Benchmark Suite (Level 2 Certified)")
     parser.add_argument("--device", type=str, default="cpu", help="Device to run on ('cpu' or 'cuda' or 'dml')")
-    parser.add_argument("--steps", type=int, default=3000, help="Training steps per model")
-    parser.add_argument("--seeds", type=int, nargs="+", default=[42, 137, 2024], help="Seeds to evaluate")
+    parser.add_argument("--steps", type=int, default=1500, help="Max training steps per model")
+    parser.add_argument("--seeds", type=int, nargs="+", default=[42, 137, 2024, 7, 999], help="Seeds to evaluate (>=5 for Level 2)")
     parser.add_argument("--pairs", type=int, nargs="+", default=[8, 16, 32], help="Number of pairs to sweep")
-    parser.add_argument("--lengths", type=int, nargs="+", default=[128, 256, 512], help="Evaluation sequence lengths")
+    parser.add_argument("--early-stop-acc", type=float, default=99.5, help="Accuracy percentage to stop early")
     parser.add_argument("--quick", action="store_true", help="Quick run for smoke test")
     
     args = parser.parse_args()
@@ -639,15 +622,16 @@ if __name__ == '__main__':
         run_rigorous_mqar_suite(
             seeds=[42],
             pair_sweep=[8],
-            eval_lengths=[128, 256],
             steps_per_train=100,
+            early_stop_acc=args.early_stop_acc,
             device=args.device
         )
     else:
         run_rigorous_mqar_suite(
             seeds=args.seeds,
             pair_sweep=args.pairs,
-            eval_lengths=args.lengths,
             steps_per_train=args.steps,
+            early_stop_acc=args.early_stop_acc,
             device=args.device
         )
+
