@@ -262,7 +262,7 @@ class DeltaPhaseHolographicBlock(nn.Module):
         memory_state = memory_state + bt.unsqueeze(-1).unsqueeze(-1) * update
         
         retrieved_t = torch.matmul(memory_state, torch.conj(qt).unsqueeze(-1)).squeeze(-1).real * inv_dk
-        retrieved = retrieved_t.transpose(1, 2).reshape(B, 1, D)
+        retrieved = retrieved_t.reshape(B, 1, D)
         retrieved_norm = self.norm_retrieved(retrieved)
         
         x = res + self.out_proj(retrieved_norm)

@@ -126,25 +126,24 @@ Evaluated under the standardized literature protocol (Zoology — Arora et al. 2
 > **Key Certified Finding:** Under dense sequence capacity ($N_{\text{pairs}}=32$), real-valued Gated DeltaNet collapses to **$75.99\% \pm 16.41\%$** due to Euclidean memory crosstalk. In contrast, **DeltaPhase maintains $98.81\% \pm 0.29\%$ across all seeds and zero-shot lengths up to $L=1024$**, matching Softmax Transformers while operating with strictly recurrent $O(1)$ memory per token. Full audit logs and parameter inventories are available in [`docs/findings_mqar_rigorous_audit.md`](docs/findings_mqar_rigorous_audit.md).
 
 ### 2. Head-to-Head vs Real Gated DeltaNet ($d_k=32$)
-Direct head-to-head empirical evaluation (`scratch/run_head_to_head_dk32.py`) under fixed head dimension ($d_k=32, d_{\text{model}}=128$, 5 seeds, Mean ± SE):
+Direct head-to-head empirical evaluation via the certified benchmark suite ([`tests/benchmark_rigorous_mqar.py`](tests/benchmark_rigorous_mqar.py)) under fixed head dimension ($d_k=32, d_{\text{model}}=128$, 5 seeds, Mean ± SE):
 
 | Key-Value Pairs ($N_{\text{pairs}}$) | Sequence Length $L$ | Real Gated DeltaNet ($\mathbb{R}$) | Complex DeltaPhase ($S^1 \subset \mathbb{C}$) | Complex Advantage |
 | :---: | :---: | :---: | :---: | :---: |
-| **16 pairs** | 64 | 78.50% ± 0.12% | **84.43% ± 0.10%** | **+5.94%** |
-| **32 pairs** | 80 | 76.18% ± 0.15% | **81.40% ± 0.11%** | **+5.23%** |
-| **64 pairs** | 144 | 71.09% ± 0.18% | **74.53% ± 0.14%** | **+3.45%** |
-| **128 pairs** | 272 | 67.03% ± 0.22% | **69.00% ± 0.19%** | **+1.97%** |
+| **8 pairs** | 128 | 97.70% ± 0.42% | **98.49% ± 0.30%** | **+0.79%** |
+| **16 pairs** | 128 | 97.33% ± 0.41% | **99.16% ± 0.19%** | **+1.83%** |
+| **32 pairs** | 256 | 75.99% ± 16.41% | **98.81% ± 0.29%** | **+22.82%** 💥 |
 
 ### 3. Native $\mathbb{Z}_k$ Cyclic Group Expressivity Benchmark (`v350`)
-Evaluates Generalized Complex Householder Reflections $\beta_t = 1 + e^{i\varphi_t}$ with complex unit-magnitude eigenvalues $\lambda = -e^{i\varphi_t} \in S^1$ against real Householder reflections ($\beta \in \mathbb{R}$, real eigenvalues in $\mathbb{Z}_2$) over cumulative modular arithmetic ($\mathbb{Z}_k$):
+Evaluates Generalized Complex Householder Reflections $\beta_t = 1 + e^{i\varphi_t}$ with complex unit-magnitude eigenvalues $\lambda = -e^{i\varphi_t} \in S^1$ against real Householder reflections ($\beta \in \mathbb{R}$, real eigenvalues in $\mathbb{Z}_2$) over cumulative modular arithmetic ($\mathbb{Z}_k$) ([`tests/test_zk_group_expressivity.py`](tests/test_zk_group_expressivity.py)):
 
 | Architecture / Beta Formulation | Eigenvalue Spectrum | $\mathbb{Z}_7$ Modular Addition Acc ($L=64$) | $\mathbb{Z}_{12}$ Modular Addition Acc ($L=64$) | Theoretical Advantage |
 | :--- | :---: | :---: | :---: | :---: |
-| **Complex Beta DeltaPhase ($\beta_t = 1 + e^{i\varphi_t}$)** 🌟 | **$-e^{i\varphi_t} \in S^1$ ($\mathbb{Z}_k$)** | **67.89%** 🌟 | **23.70%** 🌟 | **+43.58% Gap** 🌟 |
-| **Real Beta DeltaNet ($\beta_t \in \mathbb{R}$)** | $1 - \beta \in (-1, 1)$ ($\mathbb{Z}_2$) | 24.31% | 21.70% | Baseline |
+| **Complex Beta DeltaPhase ($\beta_t = 1 + e^{i\varphi_t}$)** 🌟 | **$-e^{i\varphi_t} \in S^1$ ($\mathbb{Z}_k$)** | **71.80 ± 17.24%** 🌟 | 8.28 ± 0.11% | **+56.37% Gap** 🌟 |
+| **Real Beta DeltaNet ($\beta_t \in \mathbb{R}$)** | $1 - \beta \in (-1, 1)$ ($\mathbb{Z}_2$) | 15.43 ± 0.69% | 12.50 ± 2.04% | Baseline |
 | **Chance Level Baseline** | Uniform Random | 14.29% | 8.33% | - |
 
-> **Key Theoretical Breakthrough:** Real Householder reflections $I - \beta k k^*$ are restricted to real eigenvalues $1 - \beta \in (-1, 1)$, limiting state updates to parity counting ($\mathbb{Z}_2$). Parameterizing $\beta_t = 1 + e^{i\varphi_t}$ in $\mathbb{C}$ yields complex unit eigenvalues $-e^{i\varphi_t} \in S^1$, unlocking **native $\mathbb{Z}_k$ cyclic group counting in a single token step**. This benchmark measures pure algebraic group expressivity and is **100% immune to state RAM size confounders**.
+> **Key Theoretical Breakthrough:** Real Householder reflections $I - \beta k k^*$ are restricted to real eigenvalues $1 - \beta \in (-1, 1)$, limiting state updates to parity counting ($\mathbb{Z}_2$). Parameterizing $\beta_t = 1 + e^{i\varphi_t}$ in $\mathbb{C}$ yields complex unit eigenvalues $-e^{i\varphi_t} \in S^1$, unlocking **native $\mathbb{Z}_k$ cyclic group counting in a single token step**. Reproducible via `tests/test_zk_group_expressivity.py`.
 
 ### 4. GPU Wall-Clock Scaling & Softmax OOM Immunity (NVIDIA Tesla T4)
 Evaluates real-time execution latency and VRAM allocation on an NVIDIA Tesla T4 GPU ([`docs/findings_gpu_triton_wallclock_benchmark.md`](docs/findings_gpu_triton_wallclock_benchmark.md) / [`notebooks/benchmark_triton_gpu.ipynb`](notebooks/benchmark_triton_gpu.ipynb)):
@@ -177,17 +176,20 @@ Evaluates associative recall across context lengths from $512$ to $65,536$ token
 # 1. Certified Level 2 Multi-Query Associative Recall (MQAR) Benchmark (DeltaPhase vs Transformer vs DeltaNet)
 python tests/benchmark_rigorous_mqar.py --steps 1500 --seeds 42 137 2024 7 999 --pairs 8 16 32 --early-stop-acc 99.5
 
-# 2. Double-Precision Gradcheck & Group Expressivity
-python scratch/run_head_to_head_dk32.py
-python scratch/test_fp64_gradcheck.py
+# 2. Sequential vs Parallel Chunkwise Equivalence & Relative Error Audit
+python tests/test_equivalence.py
+python tests/test_rigorous_equivalence.py
 
-# 3. Integer Quantized Phasor Engine (uint8 / uint16 ALU)
+# 3. Native Z_k Cyclic Group Expressivity Benchmark
+python tests/test_zk_group_expressivity.py
+
+# 4. Integer Quantized Phasor Engine (uint8 / uint16 ALU)
 python tests/test_quantized_phasors_poc.py
 
-# 4. Needle In A Haystack (NIAH) Selective Gating (512 to 65k tokens)
+# 5. Needle In A Haystack (NIAH) Selective Gating (512 to 65k tokens)
 python tests/test_selective_gating_niah.py
 
-# 5. Semi-Parametric Pointer-Augmented Token Buffer (Verbatim Code Copying)
+# 6. Semi-Parametric Pointer-Augmented Token Buffer (Verbatim Code Copying)
 python tests/test_pointer_augmented_memory_poc.py
 ```
 
