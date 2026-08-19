@@ -137,6 +137,15 @@ DeltaPhase conceptualizes text generation as continuous frequency wave packet em
 
 ---
 
+### 12. Real-Time Safety Auditing & Mechanistic Alignment
+
+DeltaPhase provides native, zero-overhead safety monitoring and deception detection directly through its physical and spectral properties ([`docs/real_time_safety_auditing_and_mechanistic_alignment.md`](docs/real_time_safety_auditing_and_mechanistic_alignment.md)):
+- **Unconscious Thought Monitoring:** Directly decodes the **LL (Low-Low) frequency subband** to verbalize internal intent in $O(1)$ (<2 ms), exposing "alignment faking" and covert deception without auxiliary LLM translation loops.
+- **Hamiltonian Energy Tripwires ($E$):** Mathematical resonance metric drops to negative energy wells ($\Delta E \ll 0$) when latent activations align with hazardous concepts (cyber, CBRN), triggering immediate **destructive wave cancellation ($e^{i\pi} = -1.0$)**.
+- **Topological Invariant Safeguards ($w \in \mathbb{Z}$):** Constitutional safety guardrails anchored as integer winding numbers, provably immune to adversarial prompt injection and high-frequency noise.
+
+---
+
 ## 📊 Empirical Benchmarks: Certified MQAR Solution & Head-to-Head
 
 ### 1. Literature Standard Multi-Query Associative Recall (Certified Level 2 MQAR Audit)
@@ -165,16 +174,25 @@ Direct head-to-head empirical evaluation via the certified benchmark suite ([`te
 | **16 pairs** | 128 | 97.33% ± 0.41% | **99.16% ± 0.19%** | **+1.83%** |
 | **32 pairs** | 256 | 75.99% ± 16.41% | **98.81% ± 0.29%** | **+22.82%** 💥 |
 
-### 3. Native $\mathbb{Z}_k$ Cyclic Group Expressivity Benchmark (`v350`)
-Evaluates Generalized Complex Householder Reflections $\beta_t = 1 + e^{i\varphi_t}$ with complex unit-magnitude eigenvalues $\lambda = -e^{i\varphi_t} \in S^1$ against real Householder reflections ($\beta \in \mathbb{R}$, real eigenvalues in $\mathbb{Z}_2$) over cumulative modular arithmetic ($\mathbb{Z}_k$) ([`tests/test_zk_group_expressivity.py`](tests/test_zk_group_expressivity.py)):
+### 3. Native $\mathbb{Z}_k$ Cyclic Group Expressivity & Grokking Benchmark (Certified Level 2 Audit)
+Evaluates Generalized Complex Householder Reflections $\beta_t = 1 + e^{i\varphi_t}$ with complex unit-magnitude eigenvalues $\lambda = -e^{i\varphi_t} \in S^1$ against real Householder reflections ($\beta \in \mathbb{R}$, real eigenvalues in $\mathbb{Z}_2$) and Softmax Attention over cumulative modular arithmetic across group structures ($3$ seeds, Mean ± SE) ([`docs/findings_zk_grokking_rigorous_audit.md`](docs/findings_zk_grokking_rigorous_audit.md)):
 
-| Architecture / Beta Formulation | Eigenvalue Spectrum | $\mathbb{Z}_7$ Modular Addition Acc ($L=64$) | $\mathbb{Z}_{12}$ Modular Addition Acc ($L=64$) | Theoretical Advantage |
-| :--- | :---: | :---: | :---: | :---: |
-| **Complex Beta DeltaPhase ($\beta_t = 1 + e^{i\varphi_t}$)** 🌟 | **$-e^{i\varphi_t} \in S^1$ ($\mathbb{Z}_k$)** | **71.80 ± 17.24%** 🌟 | 8.28 ± 0.11% | **+56.37% Gap** 🌟 |
-| **Real Beta DeltaNet ($\beta_t \in \mathbb{R}$)** | $1 - \beta \in (-1, 1)$ ($\mathbb{Z}_2$) | 15.43 ± 0.69% | 12.50 ± 2.04% | Baseline |
-| **Chance Level Baseline** | Uniform Random | 14.29% | 8.33% | - |
+| Group $\mathbb{Z}_k$ | Structural Type | Chance Level | Architecture / Model | Final Accuracy | Steps $>50\%$ | Steps $>80\%$ |
+| :--- | :--- | :---: | :--- | :---: | :---: | :---: |
+| **$\mathbb{Z}_7$** | **Odd Prime** | $14.29\%$ | **DeltaPhase (Complex)** 🌟 | **96.42 ± 2.65%** 🌟 | **1,100.0** | **2,666.7** |
+| | | | **Transformer Causal (MHA)** | 77.03 ± 5.86% | 2,550.0 | 5,966.7 |
+| | | | **Gated DeltaNet (Real)** | 62.92 ± 8.47% | 6,550.0 | 9,283.3 |
+| | | | **DeltaNet (Fixed Iso $\beta=2$)** | 55.80 ± 6.17% | 6,283.3 | 9,866.7 |
+| **$\mathbb{Z}_9$** | **Odd Composite ($3^2$)** | $11.11\%$ | **DeltaPhase (Complex)** 🌟 | **99.59 ± 0.11%** 🌟 | **1,266.7** | **2,050.0** |
+| | | | **Transformer Causal (MHA)** | 81.02 ± 1.44% | 3,950.0 | 8,166.7 |
+| | | | **Gated DeltaNet (Real)** | 47.97 ± 10.26% | 7,766.7 | $>10,000$ (Fail) |
+| | | | **DeltaNet (Fixed Iso $\beta=2$)** | 47.06 ± 8.46% | 8,200.0 | $>10,000$ (Fail) |
+| **$\mathbb{Z}_{12}$** | **Even Composite ($2^2 \times 3$)** | $8.33\%$ | **DeltaPhase (Complex)** 🌟 | **96.57 ± 1.46%** 🌟 | **1,733.3** | **3,250.0** |
+| | | | **Transformer Causal (MHA)** | 58.23 ± 9.14% | 7,716.7 | 9,933.3 |
+| | | | **Gated DeltaNet (Real)** | 33.74 ± 1.67% | 9,933.3 | $>10,000$ (Fail) |
+| | | | **DeltaNet (Fixed Iso $\beta=2$)** | 27.39 ± 2.09% | $>10,000$ (Fail) | $>10,000$ (Fail) |
 
-> **Key Theoretical Breakthrough:** Real Householder reflections $I - \beta k k^*$ are restricted to real eigenvalues $1 - \beta \in (-1, 1)$, limiting state updates to parity counting ($\mathbb{Z}_2$). Parameterizing $\beta_t = 1 + e^{i\varphi_t}$ in $\mathbb{C}$ yields complex unit eigenvalues $-e^{i\varphi_t} \in S^1$, unlocking **native $\mathbb{Z}_k$ cyclic group counting in a single token step**. Reproducible via `tests/test_zk_group_expressivity.py`.
+> **Key Theoretical Breakthrough:** Real Householder reflections $I - \beta k k^*$ are restricted to real eigenvalues $1 - \beta \in (-1, 1)$, limiting state updates to parity counting ($\mathbb{Z}_2$). Parameterizing $\beta_t = 1 + e^{i\varphi_t}$ in $\mathbb{C}$ yields complex unit eigenvalues $-e^{i\varphi_t} \in S^1$, unlocking **native $\mathbb{Z}_k$ cyclic group counting in a single token step**. DeltaPhase achieves **$99.59\%$ on $\mathbb{Z}_9$** and **$96.57\%$ on $\mathbb{Z}_{12}$**, dramatically outperforming Softmax Transformers and beating real DeltaNet by **$+51.62\%$** and **$+62.83\%$**. Reproducible via `tests/test_zk_group_expressivity.py`. Full audit logs in [`docs/findings_zk_grokking_rigorous_audit.md`](docs/findings_zk_grokking_rigorous_audit.md).
 
 ### 4. GPU Wall-Clock Scaling & Softmax OOM Immunity (NVIDIA Tesla T4)
 Evaluates real-time execution latency and VRAM allocation on an NVIDIA Tesla T4 GPU ([`docs/findings_gpu_triton_wallclock_benchmark.md`](docs/findings_gpu_triton_wallclock_benchmark.md) / [`notebooks/benchmark_triton_gpu.ipynb`](notebooks/benchmark_triton_gpu.ipynb)):
