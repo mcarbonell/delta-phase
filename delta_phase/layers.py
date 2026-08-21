@@ -226,6 +226,7 @@ class DeltaPhaseHolographicBlock(nn.Module):
 
         retrieved = torch.cat(out_chunks, dim=2)[:, :, :L].transpose(1, 2).reshape(B, L, D)
         retrieved_norm = self.norm_retrieved(retrieved)
+        self.last_beta = beta[:, :, :L].detach()
 
         x = res + self.out_proj(retrieved_norm)
         x = x + self.ffn(self.norm2(x))
@@ -251,13 +252,9 @@ class DeltaPhaseHolographicBlock(nn.Module):
         theta_q = self.w_q(conv_x).view(B, 1, self.n_heads, self.d_k).transpose(1, 2)
         v = self.w_v(conv_x).view(B, 1, self.n_heads, self.d_k).transpose(1, 2)
         beta = 2.0 * torch.sigmoid(self.w_beta(conv_x)).transpose(1, 2)
-        
-        theta_k_f = theta_k if theta_k.dtype == torch.float64 else theta_k.float()
-        theta_q_f = theta_q if theta_q.dtype == torch.float64 else theta_q.float()
-        K = torch.complex(torch.cos(theta_k_f), torch.sin(theta_k_f))
-        Q = torch.complex(torch.cos(theta_q_f), torch.sin(theta_q_f))
-        
-        complex_dtype = torch.complex128 if x_t.dtype == torch.float64 else torch.complex64
+        if self.beta_mode == "fixed":
+            beta = torch.ones_like(beta)
+        self.last_beta = beta.detach()
         if memory_state is None:
             memory_state = torch.zeros(B, self.n_heads, self.d_k, self.d_k, dtype=complex_dtype, device=x_t.device)
             
