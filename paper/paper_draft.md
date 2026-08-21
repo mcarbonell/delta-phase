@@ -16,10 +16,10 @@ While Transformer-based Large Language Models (LLMs) have achieved remarkable em
 In this work, we introduce **DeltaPhase**, a recurrent foundational architecture that unifies **Holographic Reduced Representations (HRR)**, **Unitary Complex Phase Dynamics on the circle group $\mathbb{T} \cong S^1$**, **Continuous-Time Hurwitz-Stable Laplace Cores ($s = \sigma + i\omega$)**, and a **Multi-Substrate Learnable Spectral Router (FWHT, DCT-II, Haar DWT)**. By reformulating associative memory writing as Generalized Complex Householder Reflections $\beta_t = 1 + e^{i\varphi_t}$ with unit-magnitude spectrum $\lambda \in S^1$, DeltaPhase natively solves cyclic group reasoning ($\mathbb{Z}_k$) and eliminates gradient vanishing/explosion. Furthermore, we show that unit phasors quantized to 8-bit integers (`uint8`) transform complex phasor multiplication into **zero-instruction single-cycle ALU modular addition $\pmod{256}$**, delivering an **$8.12\times$ memory-binding speedup** and **$8.0\times$ VRAM reduction** with $>99.30\%$ angular fidelity. 
 
 Empirically, DeltaPhase:
-1. Achieves **$100.00\%$ exact accuracy** on literature-standard Multi-Query Associative Recall (MQAR), where 2-layer Transformers remain capped at $15.00\%$.
-2. Demonstrates a **$+43.58\%$ absolute accuracy gap** over real-valued DeltaNet on multi-step modular arithmetic ($\mathbb{Z}_7$).
-3. Attains **$100.00\%$ exact cosine retrieval ($+1.0000$)** on Needle In A Haystack (NIAH) across sequence lengths up to **$65,536$ tokens** with $\mathcal{O}(1)$ state memory.
-4. Executes at **$122,602\text{ tokens/second}$** on consumer GPU hardware via fused OpenAI Triton kernels, scaling strictly linearly while standard Softmax attention collapses with Out-of-Memory (OOM) at $16\text{K}$ tokens.
+1. Achieves **$98.81\% \pm 0.29\%$** (5 independent seeds) on literature-standard Multi-Query Associative Recall (MQAR, Zoology protocol) at dense capacity ($N_{\text{pairs}}=32$, $L=256$) with zero-shot length extrapolation to $4\times$, versus **$75.99\% \pm 16.41\%$** for real-valued Gated DeltaNet (**$+22.82\%$**) and near-parity with Softmax Transformers ($99.60\%$). *Note: the complex state $\mathbb{C}^{32\times32}$ stores $2\times$ the real floats of the $\mathbb{R}^{32\times32}$ baseline; capacity-matched controls are planned (see §5.1).*
+2. Demonstrates a **$+33.50\%$ absolute accuracy gap** over real-valued Gated DeltaNet on cumulative modular arithmetic ($\mathbb{Z}_7$: $96.42\% \pm 2.65\%$ vs $62.92\% \pm 8.47\%$, 3 seeds), consistent with native $S^1$ cyclic-group expressivity.
+3. Demonstrates **$100.00\%$ retrieval fidelity ($+1.0000$ cosine sim)** in a **controlled simulation of data-dependent selective gating** (oracle salience profile, not learned end-to-end) across context lengths up to **$65,536$ tokens** with $\mathcal{O}(1)$ state memory (§5.3).
+4. Executes at **$122,602\text{ tokens/second}$** on consumer GPU hardware via the **vectorized parallel chunkwise PyTorch implementation** (fused Triton kernels in development), scaling strictly linearly while standard Softmax attention collapses with Out-of-Memory (OOM) at $16\text{K}$ tokens.
 
 ---
 
@@ -47,7 +47,7 @@ To resolve these challenges without sacrificing expressivity, we propose **Delta
 * **Continuous-Time Hurwitz Laplace Cores:** We incorporate continuous-time poles $s = \sigma + i\omega$ with guaranteed stability ($\sigma \le 0$), allowing seamless zero-shot adaptation to variable sensor clock frequencies ($\Delta t$).
 * **Learnable Multi-Substrate Spectral Router:** We replace standard dense MLP projections with a fused linear interpolation of Fast Walsh-Hadamard Transforms (FWHT), Discrete Cosine Transforms (DCT-II), and Discrete Haar Wavelets (DWT).
 * **Integer Phasor Hardware ALU Engine:** We prove that 8-bit integer phase representation turns complex binding into hardware modular addition `(a + b) & 0xFF`, yielding an $8.12\times$ speedup and $75\%$ VRAM savings.
-* **Empirical Validation across 5 Distinct Benchmarks:** We rigorously demonstrate state-of-the-art performance on MQAR, $\mathbb{Z}_k$ cyclic grokking, 65k-token NIAH, wall-clock GPU Triton scaling ($122\text{K}$ tok/s), and stable pre-training on FineWeb-Edu.
+* **Empirical Validation across 5 Distinct Benchmarks:** We show large gains over real-valued Gated DeltaNet on MQAR at dense capacity ($+22.82\%$, pending capacity-matched controls) and on $\mathbb{Z}_k$ cyclic grokking ($+33.50\%$), near-Transformer recall accuracy, a $122\text{K}$ tok/s chunkwise GPU scaling profile, and stable pre-training on FineWeb-Edu.
 
 ---
 
@@ -113,7 +113,9 @@ The recurrent state is maintained as a complex matrix $M_t \in \mathbb{C}^{d_k \
 $$v_{\text{old}, t} = \frac{1}{d_k} \text{Re}\left( M_{t-1} K_t^* \right) \in \mathbb{R}^{d_k}$$
 The prediction error vector is $e_t = V_t - v_{\text{old}, t} \in \mathbb{R}^{d_k}$. The state is updated via:
 $$M_t = M_{t-1} + \beta_t (e_t \otimes K_t) \in \mathbb{C}^{d_k \times d_k}$$
-where $\beta_t = 1 + \exp(i \varphi_t) \in \mathbb{C}$.
+where the **shipped core** uses a real contraction $\beta_t = 2.0 \cdot \sigma(W_\beta x_t) \in (0, 2)$ (non-expansive spectrum $|1-\beta_t| < 1$), and the **Generalized Complex Householder variant**
+$$\beta_t = 1 + \exp(i \varphi_t) \in \mathbb{C}$$
+additionally places the non-trivial eigenvalue exactly on $S^1$ (isometric updates). The complex-$\beta$ variant is evaluated in §5.2 and currently lives in `tests/test_zk_group_expressivity.py`; it is scheduled for integration into `delta_phase.layers`.
 
 > **Theorem 1 (Unitary Spectrum & $\mathbb{Z}_k$ Expressivity):**  
 > Under the Generalized Complex Householder reflection $H_t = I - \beta_t \frac{1}{d_k} K_t K_t^*$, for any unit vector $K_t \in (S^1)^{d_k}$, the operator has $d_k - 1$ eigenvalues equal to $+1$ and a single non-trivial eigenvalue:
@@ -124,7 +126,7 @@ where $\beta_t = 1 + \exp(i \varphi_t) \in \mathbb{C}$.
 For efficient parallel training on modern accelerator hardware (GPUs/TPUs), we partition sequences of length $L$ into non-overlapping chunks of size $C$ (e.g., $C=64$). Within each chunk $c$:
 1. **Intra-Chunk Gram Inversion ($T_{\text{mat}}$):**
    $$G_{i, j} = \frac{1}{d_k} \text{Re}(K_i K_j^*) = \frac{1}{d_k} \sum_{d=1}^{d_k} \cos(\theta_{i, d} - \theta_{j, d})$$
-   $$L_{\text{mat}} = \text{triu}(G \odot \beta_c, \text{diagonal}=1)$$
+   $$L_{\text{mat}} = \text{triu}(\text{diag}(\beta_c)\, G,\; \text{diagonal}=1)$$
    $$T_{\text{mat}} = (I + L_{\text{mat}}^T)^{-1}$$
 2. **Error and Output Projection:**
    $$E_c = T_{\text{mat}} (V_c - v_{\text{old}, c}), \quad U_c = \beta_c \odot E_c$$
@@ -135,7 +137,7 @@ For efficient parallel training on modern accelerator hardware (GPUs/TPUs), we p
 ### 3.4 Continuous-Time Hurwitz Laplace Core
 To model continuous physical dynamics and asynchronous time telemetry, DeltaPhase introduces parallel Laplace state-space heads governed by continuous differential equations:
 $$\frac{d}{dt} h(t) = (\sigma + i\omega) h(t) + B x(t), \quad \text{where } \sigma \le 0$$
-Using the bilinear transform $z = \frac{1 + s \Delta t / 2}{1 - s \Delta t / 2}$, we map the continuous left-half plane $\text{Re}(s) = \sigma \le 0$ into the stable discrete unit disk $|z| \le 1$.
+Using the zero-order hold (ZOH) discretization $z = e^{s \Delta t} = e^{\sigma \Delta t} e^{i \omega \Delta t}$ — the exact mapping implemented in `delta_phase.layers.LaplacePhaseCore` — we map the continuous left-half plane $\text{Re}(s) = \sigma \le 0$ into the stable discrete unit disk $|z| = e^{\sigma \Delta t} \le 1$.
 
 ### 3.5 Learnable Multi-Substrate Spectral Router
 Rather than employing dense spatial MLP layers, DeltaPhase projects hidden activations through a dynamic superposition of orthogonal basis transforms:
@@ -182,33 +184,42 @@ Alternatively, stochastic quantization $\tilde{\theta} = \lfloor \theta \rfloor 
 
 ## 5. Empirical Evaluation
 
-### 5.1 Multi-Query Associative Recall (MQAR v349)
-We evaluate DeltaPhase on the standard multi-query associative recall benchmark (Zoology / H3 / Anthropic Circuits) comparing against the Anthropic 2-layer Causal Induction Transformer (`CausalInductionTransformer`):
+### 5.1 Multi-Query Associative Recall (Certified Level 2 Protocol)
 
-| Architecture | Recurrent State | Loss (Epoch 30) | $L=128$ (Train) | $L=256$ (Zero-Shot) | $L=512$ (Zero-Shot) |
+We evaluate DeltaPhase on the standard multi-query associative recall benchmark (Zoology / H3, Arora et al. 2023) under the certified Level 2 protocol: dynamic *on-the-fly* sequence generation, dense supervision on all query positions, 5 independent seeds (`42, 137, 2024, 7, 999`), early stopping at $\ge 99.5\%$, and zero-shot length extrapolation. Full raw data: `docs/rigorous_mqar_results.json`; reproduction: `python tests/benchmark_rigorous_mqar.py`.
+
+| Architecture | Recurrent State | $N_{\text{pairs}}$ | $L_{\text{train}}$ Acc | OOD $2\times$ | OOD $4\times$ |
 | :--- | :---: | :---: | :---: | :---: | :---: |
-| **Complex DeltaPhase Core** 🌟 | **$\mathbb{C}^{32 \times 32}$ Matrix** | **0.0007** 🌟 | **100.00%** 🌟 | **100.00%** 🌟 | **100.00%** 🌟 |
-| **Causal Induction Transformer** | Softmax $QK^T$ | 2.9391 | 15.25% | 17.50% | 15.00% |
+| **Complex DeltaPhase** 🌟 | $\mathbb{C}^{32 \times 32}$ | 32 | **$98.81 \pm 0.29\%$** | $98.82 \pm 0.28\%$ | $98.82 \pm 0.29\%$ |
+| Causal Transformer (MHA) | Softmax $QK^T$ | 32 | $99.60 \pm 0.02\%$ | $99.62 \pm 0.03\%$ | $99.62 \pm 0.02\%$ |
+| Gated DeltaNet (Real) | $\mathbb{R}^{32 \times 32}$ | 32 | $75.99 \pm 16.41\%$ | $75.92 \pm 16.40\%$ | $76.06 \pm 16.39\%$ |
 
-DeltaPhase solves associative recall with **$100.00\%$ zero-shot accuracy** across extended horizons ($L=512$), while the standard Transformer fails to generalize beyond $17.50\%$.
+At $N_{\text{pairs}} = 16$: DeltaPhase $99.16 \pm 0.19\%$ vs Gated DeltaNet $97.33 \pm 0.41\%$ (**$+1.83\%$**). At $N_{\text{pairs}} = 32$ the real-valued baseline collapses ($+22.82\%$ gap), consistent with crosstalk at its capacity boundary: $32 \text{ pairs} \times 32 \text{ dims} = 1024$ values exactly saturate the $\mathbb{R}^{32\times32}$ state.
 
----
-
-### 5.2 Cyclic Group Expressivity ($\mathbb{Z}_k$ Modular Grokking)
-We evaluate algebraic group expressivity on cumulative modular addition tasks ($\mathbb{Z}_7$ and $\mathbb{Z}_{12}$) over sequence length $L=64$:
-
-| Architecture / Formulation | Eigenvalue Spectrum | $\mathbb{Z}_7$ Modular Accuracy ($L=64$) | $\mathbb{Z}_{12}$ Modular Accuracy ($L=64$) |
-| :--- | :---: | :---: | :---: |
-| **Complex Beta DeltaPhase ($\beta_t = 1 + e^{i\varphi_t}$)** 🌟 | **$-e^{i\varphi_t} \in S^1$ ($\mathbb{Z}_k$)** | **67.89%** 🌟 | **23.70%** 🌟 |
-| **Real Beta DeltaNet ($\beta_t \in \mathbb{R}$)** | $1 - \beta \in (-1, 1)$ ($\mathbb{Z}_2$) | 24.31% | 21.70% |
-| **Chance Level Baseline** | Uniform Random | 14.29% | 8.33% |
-
-Complex beta parameterization achieves an absolute **$+43.58\%$ accuracy gain** on $\mathbb{Z}_7$, proving that complex unit eigenvalues natively compute non-binary cyclic group operations.
+> **Honest caveat (capacity confound).** The complex state stores $2 d_k^2 = 2048$ real floats versus $1024$ for the real baseline, so the headline gap conflates phasor geometry with doubled raw capacity. The modest advantage at $N_{\text{pairs}} \in \{8, 16\}$ (far from saturation, $+0.79\%$ and $+1.83\%$) suggests a genuine dynamic benefit, but **capacity-matched controls (e.g., real $\mathbb{R}^{45\times45} \approx 2 \cdot 32^2$, or per-arm learning-rate sweeps) are required before attributing the $N=32$ gap to geometry alone.** This is the top-priority open control (see `docs/project_audit_2026-08.md`).
 
 ---
 
-### 5.3 Needle In A Haystack (NIAH) Across 65,536 Tokens
-We evaluate retrieval fidelity of a distinct associative pair inserted at varying depths ($10\%$ to $90\%$) across context lengths from $512$ to $65,536$ tokens under data-dependent selective gating ($\beta_t$):
+### 5.2 Cyclic Group Expressivity ($\mathbb{Z}_k$ Modular Grokking, Certified Level 2)
+
+We evaluate algebraic group expressivity on cumulative modular addition over sequence length $L=64$ (3 seeds `42, 137, 2024`, Mean ± SE; reproduction: `python tests/test_zk_group_expressivity.py`):
+
+| Architecture / Formulation | Eigenvalue Spectrum | $\mathbb{Z}_7$ | $\mathbb{Z}_9$ | $\mathbb{Z}_{12}$ |
+| :--- | :---: | :---: | :---: | :---: |
+| **Complex Beta DeltaPhase ($\beta_t = 1 + e^{i\varphi_t}$)** 🌟 | **$-e^{i\varphi_t} \in S^1$** | **$96.42 \pm 2.65\%$** 🌟 | **$99.59 \pm 0.11\%$** 🌟 | **$96.57 \pm 1.46\%$** 🌟 |
+| Causal Transformer (MHA) | Softmax $QK^T$ | $77.03 \pm 5.86\%$ | $81.02 \pm 1.44\%$ | $58.23 \pm 9.14\%$ |
+| Gated DeltaNet (Real, $\beta_t \in (0,2)$) | $1 - \beta \in (-1, 1)$ | $62.92 \pm 8.47\%$ | $47.97 \pm 10.26\%$ | $33.74 \pm 1.67\%$ |
+| DeltaNet (Fixed Iso $\beta=2$) | $\{-1, +1\}$ ($\mathbb{Z}_2$) | $55.80 \pm 6.17\%$ | $47.06 \pm 8.46\%$ | $27.39 \pm 2.09\%$ |
+
+Complex beta parameterization achieves an absolute **$+33.50\%$ accuracy gain over real Gated DeltaNet on $\mathbb{Z}_7$**, consistent with complex unit eigenvalues natively computing non-binary cyclic group operations.
+
+> **Caveat.** All arms share a fixed training budget (1500 steps, single learning rate). The Transformer's sub-ceiling scores suggest undertraining rather than expressivity limits; a per-arm hyperparameter sweep is planned to confirm the gap is architectural.
+
+---
+
+### 5.3 Selective-Gating NIAH Simulation Across 65,536 Tokens
+
+We evaluate the **mechanism ceiling** of data-dependent selective gating ($\beta_t$) in a controlled simulation: a needle pair with random phasor key and unit-norm value is inserted at varying depths ($10\%$ to $90\%$) into random phasor distractor fields across context lengths from $512$ to $65,536$ tokens, and the state is accumulated with an **oracle salience profile** ($\beta_t = 1.0$ at the needle, $\beta_t \approx 0$ on distractors, known a priori):
 
 ```text
 ===============================================================================================
@@ -227,14 +238,16 @@ Context Length   |   10% Depth |   25% Depth |   50% Depth |   75% Depth |   90%
 ===============================================================================================
 ```
 
-DeltaPhase achieves **$100.00\%$ exact retrieval ($+1.0000$ Cosine Sim)** across all depths and sequence lengths up to 65,536 tokens, maintaining state in a fixed $8\text{ KB}$ matrix per head.
+The simulation shows $100.00\%$ exact retrieval ($+1.0000$ cosine sim) across all depths and lengths up to 65,536 tokens with a fixed $8\text{ KB}$ state per head.
+
+> **Scope limitation (important).** This is **not** an end-to-end trained retrieval result: the salience profile is provided by an oracle that knows the needle position in advance, so the experiment upper-bounds what learned selective gating *could* achieve rather than demonstrating it. An end-to-end evaluation — trained model producing $\beta_t$, randomized needles per trial — is required before claiming long-context retrieval capability (see `docs/project_audit_2026-08.md`, R2). The companion script `tests/test_needle_in_haystack.py` uses a fixed needle identity across trials and is likewise a sanity PoC, not evidence of retrieval.
 
 ---
 
 ### 5.4 GPU Wall-Clock Scaling & Softmax OOM Immunity (NVIDIA Tesla T4)
-We measure real-time execution latency and VRAM peak consumption on an NVIDIA Tesla T4 GPU (16 GB VRAM) using our fused OpenAI Triton kernel:
+We measure real-time execution latency and VRAM peak consumption on an NVIDIA Tesla T4 GPU (16 GB VRAM) using the **vectorized parallel chunkwise PyTorch implementation** (forward-only, `torch.no_grad()`; the fused Triton kernels in `delta_phase.kernels` are experimental and were **not** used in this benchmark):
 
-| Sequence Length ($L$) | DeltaPhase Fused ($O(N)$) | Softmax Attention ($O(N^2)$) | Scaling Factor | VRAM Peak (MB) | Softmax Status |
+| Sequence Length ($L$) | DeltaPhase Chunkwise ($O(N)$) | Softmax Attention ($O(N^2)$) | Scaling Factor | VRAM Peak (MB) | Softmax Status |
 | :---: | :---: | :---: | :---: | :---: | :---: |
 | **1,024** | $10.31\text{ ms}$ | $3.45\text{ ms}$ | Base | $34.2\text{ MB}$ | Active |
 | **2,048** | $16.71\text{ ms}$ | $2.82\text{ ms}$ | $1.62\times$ | $90.7\text{ MB}$ | Active |
@@ -310,7 +323,13 @@ $$H v = (I - \beta u u^*) v = v - \beta u (u^* v) = v = 1 \cdot v$$
 Thus, there are $d_k - 1$ linearly independent eigenvectors with eigenvalue $\lambda_1 = \dots = \lambda_{d_k - 1} = +1$.  
 For vector $u$:
 $$H u = u - \beta u (u^* u) = u - \beta u = (1 - \beta) u = (1 - (1 + e^{i\varphi})) u = -e^{i\varphi} u$$
-The non-trivial eigenvalue is $\lambda_{d_k} = -e^{i\varphi} \in S^1$. Because $|\lambda_{d_k}| = |-e^{i\varphi}| = 1.0$, the operator is unitary and strictly isometric. $\blacksquare$
+The non-trivial eigenvalue is $\lambda_{d_k} = -e^{i\varphi} \in S^1$.
+
+**Non-expansiveness (singular-value argument).** Eigenvalues alone do not bound the operator norm of a non-normal matrix, so we compute the singular values explicitly. Since $H = I - \beta uu^*$ with $\|u\| = 1$:
+$$H^*H = I + \left(|\beta|^2 - \beta - \bar{\beta}\right) uu^* = I + \left(|\beta|^2 - 2\,\text{Re}\,\beta\right) uu^*$$
+which has eigenvalues $\{1,\; 1 + |\beta|^2 - 2\,\text{Re}\,\beta\}$, hence
+$$\sigma_{\max}(H) = \sqrt{\max\left(1,\; 1 + |\beta|^2 - 2\,\text{Re}\,\beta\right)}$$
+For $\beta = 1 + e^{i\varphi}$: $|\beta|^2 = 2 + 2\cos\varphi$ and $\text{Re}\,\beta = 1 + \cos\varphi$, so $1 + |\beta|^2 - 2\,\text{Re}\,\beta = 0$ exactly, giving $\sigma_{\max}(H) = 1$: **the update is exactly isometric (marginally stable)**. For real $\beta \in (0,2)$ the same formula yields $\sigma_{\max}(H) < 1$ (strict contraction). $\blacksquare$
 
 ---
 
@@ -319,13 +338,13 @@ The non-trivial eigenvalue is $\lambda_{d_k} = -e^{i\varphi} \in S^1$. Because $
 All empirical benchmarks reported in this paper can be fully reproduced using the following commands:
 
 ```bash
-# 1. Multi-Query Associative Recall (MQAR v349)
-python tests/test_causal_induction.py
+# 1. Multi-Query Associative Recall (Certified Level 2, 5 seeds)
+python tests/benchmark_rigorous_mqar.py --steps 1500 --seeds 42 137 2024 7 999 --pairs 8 16 32
 
 # 2. Native Z_k Cyclic Group Expressivity Benchmark
-python scratch/run_head_to_head_dk32.py
+python tests/test_zk_group_expressivity.py
 
-# 3. Needle In A Haystack (NIAH) 65k Selective Gating Benchmark
+# 3. Selective-Gating NIAH Simulation 65k (oracle salience — see §5.3 scope note)
 python tests/test_selective_gating_niah.py
 
 # 4. Quantized uint8 / uint16 Integer Phasor Engine Audit
@@ -334,6 +353,11 @@ python tests/test_quantized_phasors_poc.py
 # 5. Semi-Parametric Pointer-Augmented Token Buffer Benchmark
 python tests/test_pointer_augmented_memory_poc.py
 
-# 6. Google Colab GPU Wall-Clock Latency Benchmark (NVIDIA T4 / A100)
+# 6. Sequential vs Parallel Chunkwise Equivalence + FP64 Gradcheck Audit
+python tests/test_equivalence.py
+python tests/test_rigorous_equivalence.py
+
+# 7. Google Colab GPU Wall-Clock Latency Benchmark (NVIDIA T4 / A100)
 # Open and run: notebooks/benchmark_triton_gpu.ipynb
+# NOTE: benchmarks the PyTorch chunkwise path (forward-only), not the Triton kernels.
 ```

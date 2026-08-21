@@ -155,66 +155,87 @@ if TRITON_AVAILABLE:
 
 
 # =====================================================================
-# 2. Python Autograd Function & Dispatcher
+# 2. Python Reference Implementation & Dispatcher
 # =====================================================================
+
+def _chunkwise_delta_reference(theta_k, theta_q, v, beta, chunk_size=64, initial_state=None):
+    """
+    Vectorized parallel chunkwise complex Delta-Rule implementation in pure PyTorch.
+    Fully differentiable via standard autograd (solve_triangular, matmul, etc.).
+    This is the numerically verified path used by tests/test_equivalence.py.
+    """
+    B, H, L, D_K = theta_k.shape
+    inv_dk = 1.0 / float(D_K)
+
+    K = torch.complex(torch.cos(theta_k), torch.sin(theta_k))
+    Q = torch.complex(torch.cos(theta_q), torch.sin(theta_q))
+
+    num_chunks = L // chunk_size
+    Q_c = Q.view(B, H, num_chunks, chunk_size, D_K)
+    K_c = K.view(B, H, num_chunks, chunk_size, D_K)
+    V_c = v.view(B, H, num_chunks, chunk_size, D_K)
+    beta_c = beta.view(B, H, num_chunks, chunk_size)
+
+    Gram_real = torch.matmul(K_c, torch.conj(K_c).transpose(-1, -2)).real * inv_dk
+    L_mat = torch.triu(Gram_real * beta_c.unsqueeze(-1), diagonal=1)
+    I_mat = torch.eye(chunk_size, device=theta_k.device).view(1, 1, 1, chunk_size, chunk_size)
+    T_mat = torch.linalg.solve_triangular(I_mat + L_mat.transpose(-1, -2), I_mat, upper=False)
+
+    complex_dtype = torch.complex64 if theta_k.dtype == torch.float32 else torch.complex128
+    if initial_state is None:
+        M_state = torch.zeros(B, H, D_K, D_K, dtype=complex_dtype, device=theta_k.device)
+    else:
+        M_state = initial_state.clone()
+
+    out_chunks = []
+    for c in range(num_chunks):
+        qc, kc, vc, bc, tc = Q_c[:, :, c], K_c[:, :, c], V_c[:, :, c], beta_c[:, :, c], T_mat[:, :, c]
+        v_old = torch.matmul(M_state, torch.conj(kc).transpose(-1, -2)).real.transpose(-1, -2) * inv_dk
+        E_c = torch.matmul(tc, vc - v_old)
+        U_c = bc.unsqueeze(-1) * E_c
+        o_inter = torch.matmul(M_state, torch.conj(qc).transpose(-1, -2)).real.transpose(-1, -2) * inv_dk
+        A_intra = torch.tril(torch.matmul(qc, torch.conj(kc).transpose(-1, -2)).real) * inv_dk
+        out_chunks.append(torch.matmul(A_intra, U_c) + o_inter)
+        M_state = M_state + torch.matmul(U_c.to(complex_dtype).transpose(-1, -2), kc)
+
+    out = torch.cat(out_chunks, dim=2)
+    return out, M_state
+
 
 class DeltaPhaseTritonFunction(torch.autograd.Function):
     """
-    Autograd Function connecting the Triton GPU kernel with PyTorch backward pass.
+    Autograd wrapper reserved for future fused Triton kernels (inference-only today).
+
+    NOTE: the current forward runs the pure-PyTorch reference path, so wrapping it in a
+    custom Function adds no value and BREAKS gradient flow (no analytic backward yet).
+    Use `delta_phase_chunkwise_fused`, which routes gradient-enabled calls to the
+    differentiable reference implementation automatically.
     """
     @staticmethod
     def forward(ctx, theta_k, theta_q, v, beta, chunk_size=64, initial_state=None):
-        B, H, L, D_K = theta_k.shape
-        inv_dk = 1.0 / float(D_K)
-        
-        # PyTorch Reference / Fallback implementation
-        K = torch.complex(torch.cos(theta_k), torch.sin(theta_k))
-        Q = torch.complex(torch.cos(theta_q), torch.sin(theta_q))
-        
-        num_chunks = L // chunk_size
-        Q_c = Q.view(B, H, num_chunks, chunk_size, D_K)
-        K_c = K.view(B, H, num_chunks, chunk_size, D_K)
-        V_c = v.view(B, H, num_chunks, chunk_size, D_K)
-        beta_c = beta.view(B, H, num_chunks, chunk_size)
-        
-        Gram_real = torch.matmul(K_c, torch.conj(K_c).transpose(-1, -2)).real * inv_dk
-        L_mat = torch.triu(Gram_real * beta_c.unsqueeze(-1), diagonal=1)
-        I_mat = torch.eye(chunk_size, device=theta_k.device).view(1, 1, 1, chunk_size, chunk_size)
-        T_mat = torch.linalg.solve_triangular(I_mat + L_mat.transpose(-1, -2), I_mat, upper=False)
-        
-        complex_dtype = torch.complex64 if theta_k.dtype == torch.float32 else torch.complex128
-        if initial_state is None:
-            M_state = torch.zeros(B, H, D_K, D_K, dtype=complex_dtype, device=theta_k.device)
-        else:
-            M_state = initial_state.clone()
-            
-        out_chunks = []
-        for c in range(num_chunks):
-            qc, kc, vc, bc, tc = Q_c[:, :, c], K_c[:, :, c], V_c[:, :, c], beta_c[:, :, c], T_mat[:, :, c]
-            v_old = torch.matmul(M_state, torch.conj(kc).transpose(-1, -2)).real.transpose(-1, -2) * inv_dk
-            E_c = torch.matmul(tc, vc - v_old)
-            U_c = bc.unsqueeze(-1) * E_c
-            o_inter = torch.matmul(M_state, torch.conj(qc).transpose(-1, -2)).real.transpose(-1, -2) * inv_dk
-            A_intra = torch.tril(torch.matmul(qc, torch.conj(kc).transpose(-1, -2)).real) * inv_dk
-            out_chunks.append(torch.matmul(A_intra, U_c) + o_inter)
-            M_state = M_state + torch.matmul(U_c.to(complex_dtype).transpose(-1, -2), kc)
-            
-        out = torch.cat(out_chunks, dim=2)
-        ctx.save_for_backward(theta_k, theta_q, v, beta, out)
+        out, M_state = _chunkwise_delta_reference(theta_k, theta_q, v, beta, chunk_size, initial_state)
         ctx.chunk_size = chunk_size
         return out, M_state
 
     @staticmethod
     def backward(ctx, grad_out, grad_final_state):
-        theta_k, theta_q, v, beta, out = ctx.saved_tensors
-        # Analytical backward gradient pass
-        # (Standard autograd tracing handles backward for verified equivalence)
-        raise NotImplementedError("Triton custom backward will be loaded in Colab GPU benchmark")
+        raise NotImplementedError(
+            "Analytical Triton backward is not implemented yet. For training, use "
+            "delta_phase_chunkwise_fused(...), which automatically dispatches to the "
+            "fully differentiable PyTorch reference path when gradients are enabled."
+        )
 
 
 def delta_phase_chunkwise_fused(theta_k, theta_q, v, beta, chunk_size=64, initial_state=None):
     """
-    High-level entry point:
-    Executes Triton Fused GPU kernel if CUDA is active, or optimized PyTorch fallback otherwise.
+    High-level entry point.
+
+    Dispatch policy:
+      - Gradients enabled  -> pure-PyTorch chunkwise path (fully differentiable via autograd).
+      - No grad + CUDA/Triton -> DeltaPhaseTritonFunction (inference-only; fused kernels pending).
+    Both paths are numerically identical up to floating-point rounding.
     """
-    return DeltaPhaseTritonFunction.apply(theta_k, theta_q, v, beta, chunk_size, initial_state)
+    if torch.is_grad_enabled():
+        return _chunkwise_delta_reference(theta_k, theta_q, v, beta, chunk_size, initial_state)
+    with torch.no_grad():
+        return DeltaPhaseTritonFunction.apply(theta_k, theta_q, v, beta, chunk_size, initial_state)

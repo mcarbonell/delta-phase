@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.eggs/
+
+# Environments
+.env
+.venv/
+venv/
+
+# Tooling / IDE
+.vscode/
+.idea/
+.opencode/
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Experiment outputs
+*.ckpt
+*.safetensors
+wandb/

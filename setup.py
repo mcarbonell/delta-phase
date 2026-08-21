@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="delta-phase",
-    version="1.0.0",
+    version="1.3.0",
     description="High-Expressivity O(N) Complex Phase Matrix Delta-Rule Memory & Lerp Spectral LLM",
     author="M. Carbonell",
     url="https://github.com/mcarbonell/delta-phase",

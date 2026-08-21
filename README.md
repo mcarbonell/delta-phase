@@ -20,13 +20,18 @@ DeltaPhase builds upon five key lines of research:
 6. **Physical Spin Glasses & Synchronization Dynamics:** Classical 2D XY Model of planar ferromagnetism (Berezinskii, Kosterlitz & Thouless 1973), Kuramoto oscillator networks (Kuramoto 1975), and continuous-phase Hopfield associative memories (Aihara et al. 1990; Krotov & Hopfield 2016).
 
 ### 🎯 The Genuine DeltaPhase Contribution
-While real-valued linear models (DeltaNet / Gated DeltaNet) suffer from real-valued memory crosstalk under dense sequence packing, **DeltaPhase extends the parallel chunkwise WY matrix solve to Complex Phase Phasor Spaces ($\mathbb{C}^{d_k \times d_k}$)** ($K, Q \in S^1$). The unit-circle phase alignment $\frac{1}{d_k} \text{Re}(K^T \bar{Q})$ provides quasi-orthogonality, empirically mitigating memory crosstalk and maintaining a **+3.4% to +5.9% accuracy advantage over real-valued Gated DeltaNet** across associative recall benchmarks.
+While real-valued linear models (DeltaNet / Gated DeltaNet) suffer from real-valued memory crosstalk under dense sequence packing, **DeltaPhase extends the parallel chunkwise WY matrix solve to Complex Phase Phasor Spaces ($\mathbb{C}^{d_k \times d_k}$)** ($K, Q \in S^1$). The unit-circle phase alignment $\frac{1}{d_k} \text{Re}(K^T \bar{Q})$ provides quasi-orthogonality, empirically mitigating memory crosstalk. Under the certified MQAR protocol (`tests/benchmark_rigorous_mqar.py`, 5 seeds), DeltaPhase outperforms real-valued Gated DeltaNet by **$+0.79\%$ ($N=8$), $+1.83\%$ ($N=16$) and $+22.82\%$ ($N=32$, at the baseline's capacity boundary)**.
+
+> ⚠️ **Honest caveat:** the complex state $\mathbb{C}^{32\times32}$ stores $2\times$ the real floats of $\mathbb{R}^{32\times32}$, so part of the $N=32$ gap reflects doubled raw capacity rather than phasor geometry alone. Capacity-matched controls (e.g., real $\mathbb{R}^{45\times45}$) are planned — see `docs/project_audit_2026-08.md`.
 
 ---
 
 ## 🌟 Key Innovations & Mathematical Precision
 
-### 1. Extended Householder Beta Range $\beta \in (0, 2)$ & Contraction Stability
+> **Leyenda de estado** (ver `docs/project_audit_2026-08.md`):
+> **[CORE]** verificado en la librería con tests · **[POC]** prueba de concepto autocontenida en `tests/`, no integrada al modelo · **[VISIÓN]** especulativo, sin implementación.
+
+### 1. Extended Householder Beta Range $\beta \in (0, 2)$ & Contraction Stability [CORE]
 - **Contraction Spectrum $\beta \in (0, 2)$:** Parameterized via $\beta_t = 2.0 \cdot \text{sigmoid}(W_\beta x_t)$. While $\beta_t = 2.0$ represents exact Householder reflection isometry ($\det(H) = -1$), the continuous range $\beta_t \in (0, 2)$ satisfies the non-expansive contraction condition $|1 - \beta_t| < 1$, stabilizing recursive gradient flow.
 - **Fast Triangular Solve:** Uses `torch.linalg.solve_triangular(I_mat + L_mat.transpose(-1, -2), I_mat, upper=False)` for exact $O(C^2)$ chunkwise transition solves.
 - **Rigorous Equivalence Audit:**
@@ -36,24 +41,25 @@ While real-valued linear models (DeltaNet / Gated DeltaNet) suffer from real-val
 
 ---
 
-### 2. Complex Phase Matrix Delta Memory ($\mathbb{C}^{d_k \times d_k}$) & Retention Analysis
+### 2. Complex Phase Matrix Delta Memory ($\mathbb{C}^{d_k \times d_k}$) & Retention Analysis [CORE]
 
 Updates state matrix $M_t \in \mathbb{C}^{d_k \times d_k}$ via residual error correction over unit-magnitude phasors ($K_t, Q_t \in S^1$):
-1. **Unattenuated Memory Readout:** $v_{\text{old}} = \frac{1}{d_k} \text{Re}(M_{t-1} \bar{K}_t)$
-2. **Attenuated Memory Readout:** $v_{\text{att}} = \lambda_t v_{\text{old}} = \frac{\lambda_t}{d_k} \text{Re}(M_{t-1} \bar{K}_t)$
-3. **Error Signal:** $e_{\text{att}} = V_t - \lambda_t v_{\text{old}}$
-4. **State Update:** $M_t = \lambda_t M_{t-1} + \beta_t (e_{\text{att}} \otimes K_t)$
+1. **Memory Readout:** $v_{\text{old}} = \frac{1}{d_k} \text{Re}(M_{t-1} \bar{K}_t)$
+2. **Error Signal:** $e_t = V_t - v_{\text{old}}$
+3. **State Update:** $M_t = M_{t-1} + \beta_t (e_t \otimes K_t)$
+
+The gated-decay variant $M_t = \lambda_t M_{t-1} + \beta_t (e_t \otimes K_t)$ with $\lambda_t = e^{\sigma_t \Delta t} \le 1$ (Hurwitz-stable dissipation) is implemented in `LaplacePhaseCore` [POC].
 
 ---
 
-### 3. Learnable Substrate Lerp FFN Parameter & FLOP Breakdown
+### 3. Learnable Substrate Lerp FFN Parameter & FLOP Breakdown [CORE]
 
 Replaces heavy dense FFN weight matrices ($8d^2$ parameters) with a Softmax Lerp Router over parallel orthonormal transforms (FWHT, DCT-II, Haar DWT) with non-linear multi-bank phase activations:
 $$\text{FFN}(x) = \sigma(\alpha)_1 \cdot \text{Branch}_{\text{fwht}}(x) + \sigma(\alpha)_2 \cdot \text{Branch}_{\text{dct}}(x) + \sigma(\alpha)_3 \cdot \text{Branch}_{\text{haar}}(x)$$
 
 ---
 
-### 4. LogicPhase Symbolic Phasor Operators & Multi-Hop Inference Loop
+### 4. LogicPhase Symbolic Phasor Operators & Multi-Hop Inference Loop [POC]
 
 `delta_phase` (v1.1.0) includes **`LogicPhaseCore`**, an active symbolic phase-space processor:
 - **`BIND(K, V)` / `UNBIND(K, M)`:** Hadamard phasor association and conjugate readout ($1.19 \times 10^{-7}$ FP32 machine precision error).
@@ -63,7 +69,7 @@ $$\text{FFN}(x) = \sigma(\alpha)_1 \cdot \text{Branch}_{\text{fwht}}(x) + \sigma
 
 ---
 
-### 5. Delta-Laplace Phase Memory Core ($s = \sigma + i\omega$) & Continuous-Time Discretization (v1.2.0)
+### 5. Delta-Laplace Phase Memory Core ($s = \sigma + i\omega$) & Continuous-Time Discretization (v1.2.0) [POC]
 
 `delta_phase` (v1.2.0) introduces **`LaplacePhaseCore`**, extending unimodular phase $S^1$ into the complete **complex s-plane of Laplace**:
 $$K_t = e^{s_t \Delta t} = e^{\sigma_t \Delta t + i\theta_t \Delta t} = e^{\sigma_t \Delta t} \cdot \big(\cos(\theta_t \Delta t) + i \sin(\theta_t \Delta t)\big)$$
@@ -76,7 +82,7 @@ $$K_t = e^{s_t \Delta t} = e^{\sigma_t \Delta t + i\theta_t \Delta t} = e^{\sigm
 
 ---
 
-### 6. Quantized Phasor Engine: Free $2\pi$ Modulo ALU & Integer Phase Binding (`uint8` / `uint16`)
+### 6. Quantized Phasor Engine: Free $2\pi$ Modulo ALU & Integer Phase Binding (`uint8` / `uint16`) [POC]
 
 `delta_phase` includes an integer-quantized phasor evaluation core ([`docs/quantized_phasor_architecture_and_benchmarks.md`](docs/quantized_phasor_architecture_and_benchmarks.md)):
 - **Hardware-Native Modulo $2\pi$:** Quantizing phase $\theta \in [0, 2\pi) \to \text{uint8}$ converts complex multiplication into **single-cycle 8-bit integer addition** ($\theta_K + \theta_V$). Periodic boundary wrapping is **100% free** via native silicon register overflow.
@@ -98,7 +104,7 @@ Beyond incremental speedups, DeltaPhase may unlock qualitative capabilities impo
 
 ---
 
-### 8. Semi-Parametric Pointer-Augmented Token Buffer (Lossless Verbatim Code Copying)
+### 8. Semi-Parametric Pointer-Augmented Token Buffer (Lossless Verbatim Code Copying) [POC]
 
 `delta_phase` introduces an architecture extension coupling the $O(1)$ GPU DeltaPhase controller with a contiguous CPU/RAM token buffer ([`docs/pointer_augmented_token_buffer_architecture.md`](docs/pointer_augmented_token_buffer_architecture.md)):
 - **Decoupled Architecture:** DeltaPhase performs continuous semantic reasoning and grammatical flow in GPU VRAM, while a lightweight integer token array (`uint16` in system RAM) provides exact verbatim dereferencing.
@@ -107,7 +113,7 @@ Beyond incremental speedups, DeltaPhase may unlock qualitative capabilities impo
 
 ---
 
-### 9. Physical Spin Glass Foundations, Kuramoto Synchronization & Topological Memory
+### 9. Physical Spin Glass Foundations, Kuramoto Synchronization & Topological Memory [POC]
 
 DeltaPhase is mathematically isomorphic to the physics of continuous-spin magnetic materials and phase oscillator networks ([`docs/physical_foundations_and_spin_glass_dynamics.md`](docs/physical_foundations_and_spin_glass_dynamics.md) / [`docs/findings_spin_glass_and_kuramoto_relaxation.md`](docs/findings_spin_glass_and_kuramoto_relaxation.md)):
 - **2D XY Spin-Glass Hamiltonian:** The phasor affinity $\operatorname{Re}(K^\dagger Q) = \sum \cos(\theta_K - \theta_Q)$ is mathematically identical to the interaction energy of planar magnetic moments under exchange tensor $J$.
@@ -117,7 +123,7 @@ DeltaPhase is mathematically isomorphic to the physics of continuous-spin magnet
 
 ---
 
-### 10. Neural Phasor CPU (Phasor-CPU): Biologically-Inspired Helical Computing
+### 10. Neural Phasor CPU (Phasor-CPU): Biologically-Inspired Helical Computing [VISIÓN]
 
 DeltaPhase formalizes the architecture of a **differentiable, neuro-symbolic processor** inspired by the helical phase dynamics of double-helix DNA transcription ([`docs/neural_phasor_cpu_architecture.md`](docs/neural_phasor_cpu_architecture.md)):
 - **Helical Program Counter:** Rotates continuously on $S^1$ with phase-interference conditional branching (`JUMP`).
@@ -127,7 +133,7 @@ DeltaPhase formalizes the architecture of a **differentiable, neuro-symbolic pro
 
 ---
 
-### 11. Holistic Spectral Wave Language Synthesis ($O(1)$ Single-Shot Text Generation)
+### 11. Holistic Spectral Wave Language Synthesis ($O(1)$ Single-Shot Text Generation) [VISIÓN/POC]
 
 DeltaPhase conceptualizes text generation as continuous frequency wave packet emission, eliminating the sequential $O(N)$ token-by-token bottleneck ([`docs/spectral_wave_language_synthesis_and_holistic_decoding.md`](docs/spectral_wave_language_synthesis_and_holistic_decoding.md)):
 - **Single-Shot Thought Waveform:** Emits a 2D spectral tensor $\Psi(\omega, t) \in \mathbb{C}^{F \times T}$ representing the full response in a single forward pass ($O(1)$).
@@ -137,7 +143,7 @@ DeltaPhase conceptualizes text generation as continuous frequency wave packet em
 
 ---
 
-### 12. Real-Time Safety Auditing & Mechanistic Alignment
+### 12. Real-Time Safety Auditing & Mechanistic Alignment [VISIÓN]
 
 DeltaPhase provides native, zero-overhead safety monitoring and deception detection directly through its physical and spectral properties ([`docs/real_time_safety_auditing_and_mechanistic_alignment.md`](docs/real_time_safety_auditing_and_mechanistic_alignment.md)):
 - **Unconscious Thought Monitoring:** Directly decodes the **LL (Low-Low) frequency subband** to verbalize internal intent in $O(1)$ (<2 ms), exposing "alignment faking" and covert deception without auxiliary LLM translation loops.
@@ -195,9 +201,11 @@ Evaluates Generalized Complex Householder Reflections $\beta_t = 1 + e^{i\varphi
 > **Key Theoretical Breakthrough:** Real Householder reflections $I - \beta k k^*$ are restricted to real eigenvalues $1 - \beta \in (-1, 1)$, limiting state updates to parity counting ($\mathbb{Z}_2$). Parameterizing $\beta_t = 1 + e^{i\varphi_t}$ in $\mathbb{C}$ yields complex unit eigenvalues $-e^{i\varphi_t} \in S^1$, unlocking **native $\mathbb{Z}_k$ cyclic group counting in a single token step**. DeltaPhase achieves **$99.59\%$ on $\mathbb{Z}_9$** and **$96.57\%$ on $\mathbb{Z}_{12}$**, dramatically outperforming Softmax Transformers and beating real DeltaNet by **$+51.62\%$** and **$+62.83\%$**. Reproducible via `tests/test_zk_group_expressivity.py`. Full audit logs in [`docs/findings_zk_grokking_rigorous_audit.md`](docs/findings_zk_grokking_rigorous_audit.md).
 
 ### 4. GPU Wall-Clock Scaling & Softmax OOM Immunity (NVIDIA Tesla T4)
-Evaluates real-time execution latency and VRAM allocation on an NVIDIA Tesla T4 GPU ([`docs/findings_gpu_triton_wallclock_benchmark.md`](docs/findings_gpu_triton_wallclock_benchmark.md) / [`notebooks/benchmark_triton_gpu.ipynb`](notebooks/benchmark_triton_gpu.ipynb)):
+Evaluates real-time execution latency and VRAM allocation on an NVIDIA Tesla T4 GPU ([`docs/findings_gpu_triton_wallclock_benchmark.md`](docs/findings_gpu_triton_wallclock_benchmark.md) / [`notebooks/benchmark_triton_gpu.ipynb`](notebooks/benchmark_triton_gpu.ipynb)).
 
-| Sequence Length ($L$) | DeltaPhase Fused ($O(N)$) | Softmax Attention ($O(N^2)$) | Scaling Factor | VRAM Peak (MB) | Softmax Status |
+> 📝 **Nota de precisión:** el benchmark mide la **implementación chunkwise paralela en PyTorch** (forward-only, `torch.no_grad()`). Los kernels Triton de `delta_phase/kernels/` son experimentales y **no se usaron en esta medición** (backward aún no implementado).
+
+| Sequence Length ($L$) | DeltaPhase Chunkwise ($O(N)$) | Softmax Attention ($O(N^2)$) | Scaling Factor | VRAM Peak (MB) | Softmax Status |
 | :---: | :---: | :---: | :---: | :---: | :---: |
 | **1,024** | $10.31\text{ ms}$ | $3.45\text{ ms}$ | Base | $34.2\text{ MB}$ | Active |
 | **2,048** | $16.71\text{ ms}$ | $2.82\text{ ms}$ | $1.62\times$ | $90.7\text{ MB}$ | Active |
@@ -209,11 +217,13 @@ Evaluates real-time execution latency and VRAM allocation on an NVIDIA Tesla T4 
 
 > **Throughput Milestone:** Reaches **$122,602\text{ tokens/second}$** at $L=65,536$, processing an entire 150-page document in $0.53\text{ seconds}$ on a single entry-level GPU where quadratic Softmax crashes at $16\text{K}$.
 
-### 5. Extreme Long-Context Needle In A Haystack (NIAH 65K - 100.00% Green)
-Evaluates associative recall across context lengths from $512$ to $65,536$ tokens across needle depths ($10\%$ to $90\%$) under selective gating ([`docs/findings_niah_and_dk_sweep_benchmarks.md`](docs/findings_niah_and_dk_sweep_benchmarks.md)):
+### 5. Selective-Gating NIAH Simulation 65K (100.00% Green — Mecanismo, No End-to-End)
+Simulación controlada del mecanismo de gating selectivo: una aguja con clave fasorial aleatoria se inserta en longitudes de $512$ a $65,536$ tokens y el estado se acumula con un **perfil de saliencia oráculo** ($\beta_t = 1.0$ en la aguja, $\approx 0$ en la paja — posición conocida a priori) ([`docs/findings_niah_and_dk_sweep_benchmarks.md`](docs/findings_niah_and_dk_sweep_benchmarks.md)):
 
 * **Exact Cosine Retrieval:** **$100.00\%$ ($+1.0000$ Cosine Sim)** across all sequence lengths and insertion depths ($10\%$ to $90\%$).
 * **Constant Memory Footprint:** State retained in a fixed $8\text{ KB}$ matrix per head ($\mathbb{C}^{64 \times 64}$) with zero crosstalk accumulation.
+
+> ⚠️ **Alcance:** esto **acota el techo del mecanismo**, no demuestra retrieval end-to-end: la saliencia es provista por un oráculo que conoce la posición de la aguja, y `tests/test_needle_in_haystack.py` usa una aguja de identidad fija (15→85) en todos los trials. Pendiente: evaluación con modelo entrenado que produzca $\beta_t$ y agujas aleatorias por trial (ver `docs/project_audit_2026-08.md`, R2).
 
 ---
 
@@ -268,13 +278,13 @@ DeltaPhase systematically resolves the foundational theoretical limitations of t
 
 | Transformer Limitation | The DeltaPhase Resolution | Validation Status |
 | :--- | :--- | :---: |
-| **1. Quadratic Complexity $O(N^2)$** | Chunkwise parallel WY formulation with triangular solve $T_{\text{mat}}$ $\to$ **Linear $O(N)$**. | ✅ **Verified ($122.6\text{K}$ tok/s)** |
+| **1. Quadratic Complexity $O(N^2)$** | Chunkwise parallel WY formulation with triangular solve $T_{\text{mat}}$ $\to$ **Linear $O(N)$**. | ✅ **Verified ($122.6\text{K}$ tok/s, PyTorch chunkwise)** |
 | **2. KV-Cache Explosion (VRAM)** | Continuous recurrent state matrix $\mathbb{C}^{d_k \times d_k}$ $\to$ **Constant $O(1)$ VRAM ($\approx 10\text{ MB}$)**. | ✅ **Verified** |
 | **3. Infinite Context Drift** | Unitary phase isometry ($S^1 \subset \mathbb{C}$) + Hurwitz Stability in Laplace ($\sigma \le 0$). | ✅ **Verified ($100\text{K}$ tokens)** |
-| **4. Floating-Point Multiplicative Cost** | Integer Phasor Quantization (`uint8`/`uint16`) with free ALU modulo $\pmod{256}$ & L1 SRAM LUT. | ✅ **Verified ($8.12\times$ Speedup)** |
-| **5. Noise Interference at Long Context** | Data-dependent Selective Gating ($\beta_t \approx 0$ on distractors, $\beta = 1.0$ on salient needles). | ✅ **Verified ($100\%$ NIAH 65K)** |
-| **6. Cyclic Reasoning Latency (*Grokking*)** | Native circular topology $S^1 \cong U(1)$ for immediate single-step $\mathbb{Z}_k$ group counting. | ✅ **Verified ($+43.5\%$ Margin)** |
-| **7. Lossless Verbatim Code Copying** | Contiguous system RAM token buffer ($200\text{ KB}$ for 100k tokens) + Differentiable Pointer Head. | ✅ **Verified ($100\%$ Exact Copy)** |
+| **4. Floating-Point Multiplicative Cost** | Integer Phasor Quantization (`uint8`/`uint16`) with free ALU modulo $\pmod{256}$ & L1 SRAM LUT. | 🟡 **Micro-benchmark ($8.12\times$ binding); sin end-to-end** |
+| **5. Noise Interference at Long Context** | Data-dependent Selective Gating ($\beta_t \approx 0$ on distractors, $\beta = 1.0$ on salient needles). | 🟡 **Simulación (gating oráculo); end-to-end pendiente** |
+| **6. Cyclic Reasoning Latency (*Grokking*)** | Native circular topology $S^1 \cong U(1)$ for immediate single-step $\mathbb{Z}_k$ group counting. | ✅ **Verified ($+33.5\%$ vs Gated DeltaNet, 3 seeds)** |
+| **7. Lossless Verbatim Code Copying** | Contiguous system RAM token buffer ($200\text{ KB}$ for 100k tokens) + Differentiable Pointer Head. | ✅ **Verified ($100\%$ Exact Copy, PoC)** |
 
 ---
 
