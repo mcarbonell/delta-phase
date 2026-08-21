@@ -138,13 +138,17 @@ class DeltaPhaseHolographicBlock(nn.Module):
     Parallel Chunkwise Complex Delta-Phase Memory Layer (v300/v305).
     Computes intra-chunk transitions and outputs via parallel GPU matmuls.
     """
-    def __init__(self, d_model: int, n_heads: int = 8, conv_kernel_size: int = 4, chunk_size: int = 64, num_banks: int = 4):
+    def __init__(self, d_model: int, n_heads: int = 8, conv_kernel_size: int = 4, chunk_size: int = 64, num_banks: int = 4, beta_mode: str = "learned"):
         super().__init__()
+        if beta_mode not in ("learned", "fixed"):
+            raise ValueError(f"beta_mode must be 'learned' or 'fixed', got {beta_mode!r}")
         self.d_model = d_model
         self.n_heads = n_heads
         self.d_k = d_model // n_heads
         self.inv_dk = 1.0 / float(self.d_k)
         self.chunk_size = chunk_size
+        self.beta_mode = beta_mode
+        self.last_beta = None
         
         self.norm1 = nn.LayerNorm(d_model)
         self.norm2 = nn.LayerNorm(d_model)
@@ -178,6 +182,8 @@ class DeltaPhaseHolographicBlock(nn.Module):
         theta_q = self.w_q(conv_x).view(B, L_padded, self.n_heads, self.d_k).transpose(1, 2)
         v = self.w_v(conv_x).view(B, L_padded, self.n_heads, self.d_k).transpose(1, 2)
         beta = 2.0 * torch.sigmoid(self.w_beta(conv_x)).transpose(1, 2)
+        if self.beta_mode == "fixed":
+            beta = torch.ones_like(beta)
         if pad_len > 0:
             mask = torch.ones(B, self.n_heads, L_padded, device=x.device)
             mask[:, :, L:] = 0.0

@@ -14,7 +14,7 @@
 | Implementación del bloque principal | ✅ Sólida, con reservas menores de ingeniería |
 | Benchmark MQAR (comparativa principal) | 🟡 Metodología buena, pero con un **confound de capacidad sin controlar** |
 | Benchmarks NIAH / gating selectivo | 🔴 Evidencia débil (aguja fija; simulación con gating oráculo) |
-| Kernels Triton "fused" | 🔴 No usados por el benchmark de GPU; backward no implementado |
+| Kernels Triton "fused" | 🟡 Mitigado el 2026‑08‑21 (dispatcher enruta llamadas con gradiente a la ruta PyTorch diferenciable); los kernels Triton siguen sin usarse en el benchmark de GPU y son experimentales |
 | Cores secundarios (LogicPhase, Laplace) | 🟡 Conceptos interesantes, pero viven fuera de la librería, solo como scripts PoC |
 | Consistencia documental | 🟡 JSON crudo consistente con README ✅, pero el paper draft contiene números contradictorios ❌ |
 
@@ -149,23 +149,28 @@ Estos son los tres cimientos de credibilidad del proyecto y **se sostienen**.
 4. **R4 — Kernel Triton roto/misleading** (backward NotImplementedError, no usado en el benchmark, §2.3.1–2).
 5. **R5 — Paper draft con números contradictorios** respecto a los propios resultados certificados (§3.5).
 
-## 6. Recomendaciones Priorizadas
+## 6. Recomendaciones Priorizadas — ESTADO DE REMEDIACIÓN (actualizado 21‑08‑2026)
 
 **P0 — Antes de citar resultados públicamente:**
-1. Añadir a MQAR el control de capacidad igualada: Gated DeltaNet real con d_k≈45 (o 2 cabezas reales de 32) y re-tuning de lr por brazo (sweep corto 1e-3..5e-3). Si la ventaja compleja sobrevive, el claim queda blindado.
-2. Rehacer NIAH con aguja aleatoria por trial y modelo entrenado end-to-end (gating aprendido, no oráculo). Publicar matriz con aguja variable.
-3. Corregir README/paper: renombrar "Fused OpenAI Triton Kernels" por "chunkwise PyTorch (kernels Triton en desarrollo)" y reconciliar los números del paper draft con `rigorous_mqar_results.json`.
+
+1. 🔴 **PENDIENTE (experimento).** Añadir a MQAR el control de capacidad igualada: Gated DeltaNet real con d_k≈45 (o 2 cabezas reales de 32) y re-tuning de lr por brazo (sweep corto 1e-3..5e-3).
+2. 🔴 **PENDIENTE (experimento).** Rehacer NIAH con aguja aleatoria por trial y modelo entrenado end-to-end (gating aprendido, no oráculo).
+3. ✅ **COMPLETADO (docs).** Corregir README/paper: el claim "Fused OpenAI Triton Kernels" fue renombrado a "chunkwise PyTorch" en ambos documentos con nota explicativa, y el paper draft fue reconciliado con `rigorous_mqar_results.json` (ver §8, changelog).
 
 **P1 — Salud del código:**
-4. Eliminar `autograd.Function` wrapper hasta tener backward analítico (o hacer fallback transparente a ops PyTorch cuando `torch.is_grad_enabled()`).
-5. Convertir tests a pytest con asserts (tolerancias explícitas) + añadir CI básico (CPU-only) que corra equivalencia + core + smoke MQAR.
-6. Integrar `ComplexBetaDeltaPhaseBlock` y `LaplacePhaseCore` en el paquete con tests propios, o moverlos a `experiments/` con nota clara.
-7. `.gitignore` (`__pycache__/`, `*.pyc`) y `git rm --cached` de los .pyc; unificar versión (1.3.0).
+
+4. ✅ **COMPLETADO (código + verificado).** El wrapper `autograd.Function` ya no rompe gradientes: `_chunkwise_delta_reference` fue extraída como función diferenciable y `delta_phase_chunkwise_fused` enruta automáticamente llamadas con gradiente a esa ruta; el `Function` queda reservado para inferencia con mensaje de error informativo. Verificación: backward OK, rutas numéricamente idénticas (diff = 0.0).
+5. 🔴 **PENDIENTE.** Convertir tests a pytest con asserts (tolerancias explícitas) + añadir CI básico (CPU-only) que corra equivalencia + core + smoke MQAR.
+6. 🔴 **PENDIENTE.** Integrar `ComplexBetaDeltaPhaseBlock` y `LaplacePhaseCore` en el paquete con tests propios, o moverlos a `experiments/` con nota clara.
+7. ✅ **COMPLETADO (repo).** `.gitignore` creado (`__pycache__/`, `*.py[cod]`, artefactos de build), `.pyc` eliminados del índice de git (`git rm --cached`, archivos intactos en disco), y versión unificada a 1.3.0 en `setup.py`.
 
 **P2 — Mejoras:**
-8. Soporte AMP: mantener θ en dtype del modelo (cos/sin estables en bf16 con tolerancia medida) o documentar la restricción FP32.
-9. Vectorizar `LaplacePhaseCore` (scan chunkwise análogo al bloque principal) y el kernel Gram Triton (tiles BLOCK_C × BLOCK_C con cargas vectorizadas).
-10. Ablation del router de sustratos: FWHT/DCT/Haar vs MLP gated de igual presupuesto, reportando probabilidades del router tras entrenamiento real (hoy siempre 33/33/33 en los tests).
+
+8. 🔴 **PENDIENTE.** Soporte AMP: mantener θ en dtype del modelo o documentar la restricción FP32.
+9. 🔴 **PENDIENTE.** Vectorizar `LaplacePhaseCore` (scan chunkwise análogo al bloque principal) y el kernel Gram Triton (tiles BLOCK_C × BLOCK_C con cargas vectorizadas).
+10. 🔴 **PENDIENTE.** Ablation del router de sustratos: FWHT/DCT/Haar vs MLP gated de igual presupuesto, reportando probabilidades del router tras entrenamiento real.
+
+> Nota: los ítems P0-1/P0-2 requieren ejecución de experimentos (horas de CPU/GPU), no solo edición; se mantienen como siguiente fase junto con P1-5/P1-6.
 
 ## 7. Tabla de Estado de Claims (README ↔ Evidencia)
 
@@ -177,7 +182,7 @@ Estos son los tres cimientos de credibilidad del proyecto y **se sostienen**.
 | MQAR: ventaja sobre Gated DeltaNet | 🟡 | Datos reales, pero confound 2× capacidad sin controlar |
 | MQAR: "matching Softmax Transformer" | 🟡 | Cerca (98.8 vs 99.6) pero no iguala; Transformer gana en todos los bloques |
 | NIAH 65K 100% | 🔴 | Aguja fija + gating oráculo; no end-to-end |
-| "Fused Triton kernels" 122K tok/s | 🟡 | Wall-clock real, pero ruta PyTorch; kernels Triton sin usar/roto backward |
+| "Fused Triton kernels" 122K tok/s | 🟡 | Wall-clock real, pero ruta PyTorch chunkwise (aclarado en README/paper); riesgo de gradiente roto mitigado el 2026‑08‑21 (dispatcher diferenciable) |
 | Z_k grokking nativo | 🟡 | Mecanismo plausible (isometría verificada), baselines posiblemente infraentrenados; bloque no integrado |
 | Quantized phasors 8.12× | 🟡 | Microbenchmark de binding válido; sin end-to-end |
 | Laplace Hurwitz / estabilidad 100K tokens | 🟡 | Construcción correcta (σ≤0 garantizado); validación vive en scripts externos al paquete |
@@ -185,4 +190,49 @@ Estos son los tres cimientos de credibilidad del proyecto y **se sostienen**.
 
 ---
 
-*Auditoría realizada mediante revisión estática del 100% del código fuente y pruebas, verificación algebraica independiente de la formulación chunkwise, inspección del notebook de GPU y del JSON crudo de resultados, y ejecución local de `test_equivalence.py`, `test_core.py` y gradcheck FP64.*
+## 8. Changelog de Remediación (21‑08‑2026)
+
+Remediación aplicada tras esta auditoría, en dos fases: documentación primero, luego código.
+
+### Fase 1 — Documentación
+
+**`paper/paper_draft.md`** (reconciliado con los resultados certificados del propio repo):
+- **Abstract:** reemplazados los claims "100.00% MQAR / Transformers capped at 15%" y "+43.58% en Z_7" por los números certificados Nivel 2 (98.81% ± 0.29% vs Transformer 99.60%, +22.82% vs Gated DeltaNet; +33.50% en Z_7), con caveat explícito del confound de capacidad (2× flotantes).
+- **§3.2:** aclarado que el núcleo publicado usa β real ∈ (0,2) y que la variante Householder compleja β = 1+e^{iφ} vive en `tests/test_zk_group_expressivity.py` (pendiente de integración).
+- **§3.4:** corregida la discretización — el código implementa **ZOH** (`z = e^{sΔt}`), no transformada bilineal.
+- **§3.3:** notación precisa del escalado `diag(β_c)·G` (escalado por filas), consistente con la derivación verificada.
+- **§5.1:** eliminada la tabla v349 (baseline Transformer roto: 15%) y sustituida por la tabla certificada multi-semilla + caveat de capacidad.
+- **§5.2:** números antiguos single-run (67.89%/23.70%) sustituidos por certificados (Z_7/Z_9/Z_12, 3 seeds) + caveat de presupuesto de entrenamiento fijo.
+- **§5.3:** re-titulado "Selective-Gating NIAH **Simulation**" con nota de alcance: saliencia oráculo, no retrieval end-to-end.
+- **§5.4:** "fused OpenAI Triton kernel" → "vectorized parallel chunkwise PyTorch implementation" (forward-only).
+- **Apéndice A.1:** prueba del Teorema 1 reforzada — los autovalores no bastan para acotar la norma de operadores no normales; se añadió el argumento de valores singulares: σ_max(H)² = max(1, 1+|β|²−2Re β), que con β = 1+e^{iφ} da σ_max = 1 exacto (isometría marginal) y con β real ∈ (0,2) contracción estricta.
+- **Apéndice B:** comandos de reproducción corregidos (`scratch/run_head_to_head_dk32.py` no existe → `tests/test_zk_group_expressivity.py`; MQAR → `benchmark_rigorous_mqar.py`; añadidos tests de equivalencia).
+
+**`README.md`:**
+- Claim de contribución actualizado (+0.79% / +1.83% / +22.82% según datos certificados, antes "+3.4% a +5.9%") con ⚠️ caveat de capacidad añadido.
+- Leyenda de estado [CORE] / [POC] / [VISIÓN] añadida y aplicada a las 12 secciones de innovaciones (deja claro qué está integrado en la librería, qué es PoC en scripts y qué es especulativo).
+- §2 corregida: el núcleo implementado NO usa atenuación λ_t (esa variante gated vive en `LaplacePhaseCore`) — la descripción anterior atribuía al bloque principal un mecanismo que no tiene.
+- §Benchmarks-4: columna "DeltaPhase Fused" → "DeltaPhase Chunkwise" + nota de precisión sobre la ruta medida (PyTorch forward-only, sin Triton).
+- §Benchmarks-5: NIAH re-etiquetado como simulación con saliencia oráculo + alcance pendiente end-to-end.
+- Tabla "Architectural Completeness": estados ajustados a la evidencia real (filas 4 y 5 pasan de ✅ Verified a 🟡 micro-benchmark / simulación; fila 6 actualizada a +33.5%).
+
+### Fase 2 — Repositorio y código
+
+- **`.gitignore` creado** (`__pycache__/`, `*.py[cod]`, `build/`, `dist/`, entornos, artefactos de experimentos).
+- **`.pyc` eliminados del índice de git** vía `git rm -r --cached` (los archivos permanecen en disco; solo deja de trackearlos).
+- **`setup.py`:** versión 1.0.0 → **1.3.0**, unificada con `delta_phase/__init__.py`.
+- **`delta_phase/kernels/triton_chunk_delta.py` — fix de gradiente (R4):**
+  - Extraída `_chunkwise_delta_reference(...)`: la ruta chunkwise PyTorch como función pura **totalmente diferenciable** por autograd nativo.
+  - `DeltaPhaseTritonFunction.forward` ahora delega en ella; su `backward` lanza `NotImplementedError` con mensaje accionable (usar el dispatcher para entrenar).
+  - Nuevo dispatcher `delta_phase_chunkwise_fused`: con gradientes habilitados usa la ruta diferenciable automáticamente; bajo `torch.no_grad()` usa el wrapper (futuros kernels fused). Ambas rutas numéricamente idénticas.
+  - **Verificación ejecutada:** backward OK (grad fluye), ruta no-grad OK, diff grad-vs-nograd = 0.0.
+
+### Pendiente (siguiente fase)
+- P0-1/P0-2: experimentos de control (capacidad igualada en MQAR; NIAH end-to-end con aguja aleatoria).
+- P1-5: migración de tests a pytest + CI.
+- P1-6: integración (o reubicación en `experiments/`) de `ComplexBetaDeltaPhaseBlock` / `LaplacePhaseCore`.
+- P2: AMP, vectorización de `LaplacePhaseCore`, kernel Gram Triton con tiles, ablation del router FFN.
+
+---
+
+*Auditoría realizada mediante revisión estática del 100% del código fuente y pruebas, verificación algebraica independiente de la formulación chunkwise, inspección del notebook de GPU y del JSON crudo de resultados, y ejecución local de `test_equivalence.py`, `test_core.py` y gradcheck FP64. Remediación documental/código aplicada y verificada el 21‑08‑2026.*
