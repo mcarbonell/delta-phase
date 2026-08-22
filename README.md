@@ -51,7 +51,7 @@ Updates state matrix $M_t \in \mathbb{C}^{d_k \times d_k}$ via residual error co
 2. **Error Signal:** $e_t = V_t - v_{\text{old}}$
 3. **State Update:** $M_t = M_{t-1} + \beta_t (e_t \otimes K_t)$
 
-The gated-decay variant $M_t = \lambda_t M_{t-1} + \beta_t (e_t \otimes K_t)$ with $\lambda_t = e^{\sigma_t \Delta t} \le 1$ (Hurwitz-stable dissipation) is implemented in `LaplacePhaseCore` [POC].
+The gated-decay variant $M_t = \lambda_t M_{t-1} + \beta_t (e_t \otimes K_t)$ with $\lambda_t = e^{\sigma_t \Delta t} \le 1$ (Hurwitz-stable dissipation) is implemented in `LaplacePhaseCore` [CORE], including an **exact chunkwise-parallel scan** (see §5).
 
 ---
 
@@ -59,6 +59,8 @@ The gated-decay variant $M_t = \lambda_t M_{t-1} + \beta_t (e_t \otimes K_t)$ wi
 
 Replaces heavy dense FFN weight matrices ($8d^2$ parameters) with a Softmax Lerp Router over parallel orthonormal transforms (FWHT, DCT-II, Haar DWT) with non-linear multi-bank phase activations:
 $$\text{FFN}(x) = \sigma(\alpha)_1 \cdot \text{Branch}_{\text{fwht}}(x) + \sigma(\alpha)_2 \cdot \text{Branch}_{\text{dct}}(x) + \sigma(\alpha)_3 \cdot \text{Branch}_{\text{haar}}(x)$$
+
+> 📊 **Ablation empírica honesta** (`tests/benchmark_ffn_router_ablation.py`, protocolo MQAR certificado $N=16$, 3 semillas, presupuesto iso-paramétrico ~$4d^2$): la precisión es **estadísticamente indistinguible** de un MLP gated equivalente (99.05–99.11% vs 99.15–99.26%, $\Delta < 1$ SE), y el MLP corre ~$2\times$ más rápido por paso en esta implementación. El router **sí aprende una preferencia de sustrato reproducible** (FWHT ≈43% > DCT ≈35% > Haar ≈21%, consistente en todas las semillas). Datos crudos: `docs/ffn_router_ablation_results.json`.
 
 ---
 
@@ -72,12 +74,14 @@ $$\text{FFN}(x) = \sigma(\alpha)_1 \cdot \text{Branch}_{\text{fwht}}(x) + \sigma
 
 ---
 
-### 5. Delta-Laplace Phase Memory Core ($s = \sigma + i\omega$) & Continuous-Time Discretization (v1.2.0) [POC]
+### 5. Delta-Laplace Phase Memory Core ($s = \sigma + i\omega$) & Continuous-Time Discretization (v1.2.0) [CORE]
 
 `delta_phase` (v1.2.0) introduces **`LaplacePhaseCore`**, extending unimodular phase $S^1$ into the complete **complex s-plane of Laplace**:
 $$K_t = e^{s_t \Delta t} = e^{\sigma_t \Delta t + i\theta_t \Delta t} = e^{\sigma_t \Delta t} \cdot \big(\cos(\theta_t \Delta t) + i \sin(\theta_t \Delta t)\big)$$
 
 - **Continuous-to-Discrete ZOH Mapping:** Mapes continuous Hurwitz stability $\text{Re}(s) = \sigma \le 0$ to the discrete **Z-plane unit disk ($|z| = e^{\sigma \Delta t} \le 1$)** via Zero-Order Hold.
+- **Exact Chunkwise-Parallel Scan (P2):** Because the decay $\text{diag}(r_t)$ acts on the output rows of $M$, the intra-chunk coupling reduces to the plain phasor Gram and the data-dependent decay factorizes in log-space — an **exact** batched triangular solve per output channel (no approximation). Equivalence vs the sequential oracle: **$\le 4.1\times 10^{-7}$** across lengths, depths and non-zero initial states (`tests/test_laplace_chunkwise.py`); measured speedup **$2.45\times$ at $L{=}1024, d{=}256$**, growing with sequence length.
+- **AMP-Safe Dtype Policy (P2):** All phasor trigonometry runs in explicit FP32/FP64 (documented module policy); the full package now trains correctly under `torch.autocast(bfloat16)` (`tests/test_amp_dtypes.py`).
 - **Time-Scale Invariance (`v339`):** Achieves **97.41% representation invariance across 2x time-scale shifts** ($L=128$) and **92.39% across 4x time-scale shifts** ($L=256$).
 - **Hurwitz Stability & Infinite Context (`v340`):** State norm $\|M_t\|_F$ remains strictly bounded in a corridor between **9.99 and 12.33 across 100,000 continuous tokens**.
 - **Falsification & Positive Control Audit (`v341`):** Forcing $\text{Re}(s) = \sigma > 0$ causes immediate numerical **explosion to $1.03 \times 10^{10}$ at step 18**, proving stability is 100% driven by the Hurwitz constraint.
@@ -269,7 +273,18 @@ python tests/test_spin_glass_recurrent_relaxation.py
 
 # 8. Holistic Spectral Wave Language Synthesis (SpecWave O(1) Vocoding)
 python tests/test_spectral_wave_generation.py
+
+# 9. FFN Substrate Router Ablation (Lerp FFN vs iso-budget gated MLP + learned router report)
+python tests/benchmark_ffn_router_ablation.py --seeds 42 137 2024 --pairs 16
+
+# Full automated suite (54 tests: equivalence, gradcheck FP64, AMP/bf16, Laplace chunkwise,
+# integrated cores, Triton dispatcher, smoke MQAR/NIAH) via GitHub Actions or locally:
+pytest
 ```
+
+### Testing & CI
+- `pytest.ini` whitelists the automated suites; **53 passed / 1 skipped** locally (the skip is the Triton-kernel GPU parity test, auto-skipped without CUDA).
+- `.github/workflows/ci.yml` runs the full suite on every push (CPU-only).
 
 ### Run Google Colab GPU Benchmark
 Open and execute [`notebooks/benchmark_triton_gpu.ipynb`](notebooks/benchmark_triton_gpu.ipynb) on any GPU instance.
@@ -295,7 +310,7 @@ DeltaPhase systematically resolves the foundational theoretical limitations of t
 | **2. KV-Cache Explosion (VRAM)** | Continuous recurrent state matrix $\mathbb{C}^{d_k \times d_k}$ $\to$ **Constant $O(1)$ VRAM ($\approx 10\text{ MB}$)**. | ✅ **Verified** |
 | **3. Infinite Context Drift** | Unitary phase isometry ($S^1 \subset \mathbb{C}$) + Hurwitz Stability in Laplace ($\sigma \le 0$). | ✅ **Verified ($100\text{K}$ tokens)** |
 | **4. Floating-Point Multiplicative Cost** | Integer Phasor Quantization (`uint8`/`uint16`) with free ALU modulo $\pmod{256}$ & L1 SRAM LUT. | 🟡 **Micro-benchmark ($8.12\times$ binding); sin end-to-end** |
-| **5. Noise Interference at Long Context** | Data-dependent Selective Gating ($\beta_t \approx 0$ on distractors, $\beta = 1.0$ on salient needles). | 🟡 **Simulación (gating oráculo); end-to-end pendiente** |
+| **5. Noise Interference at Long Context** | Data-dependent Selective Gating ($\beta_t \approx 0$ on distractors, $\beta = 1.0$ on salient needles). | ✅ **End-to-End certificado (aguja aleatoria; +9.3% gating aprendido hasta 8K)** |
 | **6. Cyclic Reasoning Latency (*Grokking*)** | Native circular topology $S^1 \cong U(1)$ for immediate single-step $\mathbb{Z}_k$ group counting. | ✅ **Verified ($+33.5\%$ vs Gated DeltaNet, 3 seeds)** |
 | **7. Lossless Verbatim Code Copying** | Contiguous system RAM token buffer ($200\text{ KB}$ for 100k tokens) + Differentiable Pointer Head. | ✅ **Verified ($100\%$ Exact Copy, PoC)** |
 
