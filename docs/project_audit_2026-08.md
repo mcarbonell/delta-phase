@@ -191,7 +191,7 @@ Estos son los tres cimientos de credibilidad del proyecto y **se sostienen**.
 **P1 — Salud del código:**
 
 4. ✅ **COMPLETADO (código + verificado).** El wrapper `autograd.Function` ya no rompe gradientes: dispatcher funcional en `delta_phase_chunkwise_fused`.
-5. 🔴 **PENDIENTE.** Convertir tests a pytest con asserts (tolerancias explícitas) + añadir CI básico (CPU-only) que corra equivalencia + core + smoke MQAR.
+5. ✅ **COMPLETADO (suite pytest + CI).** Suite completa de 25 tests en `pytest` con tolerancias explícitas (`test_core.py`, `test_equivalence.py`, `test_rigorous_equivalence.py` con gradcheck FP64, `test_smoke_mqar.py`, `test_smoke_niah.py`, `test_triton_dispatcher.py`), `pytest.ini` y workflow de GitHub Actions (`.github/workflows/ci.yml`).
 6. 🔴 **PENDIENTE.** Integrar `ComplexBetaDeltaPhaseBlock` y `LaplacePhaseCore` en el paquete con tests propios, o moverlos a `experiments/` con nota clara.
 7. ✅ **COMPLETADO (repo).** `.gitignore` creado, `.pyc` eliminados del índice de git, versión unificada a 1.3.0 en `setup.py`.
 
@@ -240,5 +240,12 @@ Estos son los tres cimientos de credibilidad del proyecto y **se sostienen**.
 - Implementación y ejecución de `tests/benchmark_niah_e2e_colab.py` en GPU Tesla T4 (3 semillas).
 - Aguja re-muestreada aleatoriamente en cada ensayo individual y gating $\beta_t$ aprendido end-to-end.
 - Resolución formal de R2: certificación de $100.0\%$ de recuperación hasta $L=512$, $98.0\%$ a $L=1024$, y ventaja sistemática del gating adaptativo sobre el control $\beta=1.0$ a longitudes extendidas.
+
+### Fase 5 — Suite de Pytest Automatizada y CI (22‑08‑2026)
+- Creación de `pytest.ini` y conversión de tests a pytest con asserts y fixtures (`tests/test_core.py`, `tests/test_equivalence.py`, `tests/test_rigorous_equivalence.py`).
+- Creación de tests de humo rápidos para CI (`tests/test_smoke_mqar.py`, `tests/test_smoke_niah.py`, `tests/test_triton_dispatcher.py`).
+- Verificación completa: 25/25 tests unitarios e integrados pasando en verde.
+- Configuración de GitHub Actions CI en `.github/workflows/ci.yml`.
+
 
 

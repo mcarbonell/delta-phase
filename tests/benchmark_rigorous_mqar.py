@@ -24,9 +24,11 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 # Fix Windows console utf-8 encoding if needed
-if sys.platform == 'win32':
-    import io
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+if sys.platform == 'win32' and hasattr(sys.stdout, 'reconfigure'):
+    try:
+        sys.stdout.reconfigure(encoding='utf-8')
+    except Exception:
+        pass
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from delta_phase.layers import DeltaPhaseHolographicBlock, ShortCausalConv1D
