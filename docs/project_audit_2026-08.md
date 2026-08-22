@@ -13,12 +13,12 @@
 | Formulación matemática del núcleo chunkwise | ✅ **Correcta** (verificada algebraicamente y empíricamente) |
 | Implementación del bloque principal | ✅ Sólida, con reservas menores de ingeniería |
 | Benchmark MQAR (comparativa principal) | ✅ **Resuelto / Certificado** (Control iso-floats 3000 pasos completado; demuestra aceleración de grokking 1.38×–1.74× y equivalencia asintótica) |
-| Benchmarks NIAH / gating selectivo | 🔴 Evidencia débil (aguja fija; simulación con gating oráculo) |
+| Benchmarks NIAH / gating selectivo | ✅ **Resuelto / Certificado** — aguja aleatoria por trial, gating aprendido vs control β=1 (3 semillas, GPU) |
 | Kernels Triton "fused" | 🟡 Mitigado el 2026‑08‑21 (dispatcher enruta llamadas con gradiente a la ruta PyTorch diferenciable); los kernels Triton siguen sin usarse en el benchmark de GPU y son experimentales |
-| Cores secundarios (LogicPhase, Laplace) | 🟡 Conceptos interesantes, pero viven fuera de la librería, solo como scripts PoC |
+| Cores secundarios (LogicPhase, Laplace, ComplexBeta) | ✅ **Integrados** en `delta_phase/layers.py` (Fase 6), exportados y testeados (`test_integrated_cores.py`, 32/32 verde) |
 | Consistencia documental | ✅ Reconciliado: paper draft y README alineados con resultados multi-semilla certificados |
 
-**Conclusión en una frase:** El núcleo técnico es real y correcto —la formulación chunkwise compleja del Delta Rule está bien derivada, bien implementada, pasa gradcheck FP64 y el control de capacidad igualada demuestra una aceleración de convergencia de hasta 1.74× con respecto al espacio real—; el claim de NIAH 65K requiere todavía el experimento end-to-end con aguja aleatoria (P0-2) antes de publicación formal.
+**Conclusión en una frase:** El núcleo técnico es real y correcto —la formulación chunkwise compleja del Delta Rule está bien derivada, bien implementada y pasa gradcheck FP64—; los dos riesgos P0 quedaron resueltos con experimentos certificados en GPU: el control iso-floats demuestra que la ventaja sobre el espacio real es de **sample efficiency (grokking 1.38×–1.74× más rápido), no de capacidad estática**, y el NIAH end-to-end con aguja aleatoria certifica 100% hasta L=512 y 98% hasta L=1024 con ventaja del gating aprendido.
 
 ---
 
@@ -89,8 +89,8 @@ Estos son los tres cimientos de credibilidad del proyecto y **se sostienen**.
 4. `forward` fuerza `theta.float()` → bloquea silenciosamente rutas AMP bf16/fp16 (costo de rendimiento no documentado).
 5. `LogicPhaseCore.not_op` aloja tensores temporales en cada llamada (menor).
 6. `LaplacePhaseCore` y el bloque Z_k usan bucles Python token-a-token (viola la regla propia de `GEMINI.md` de vectorización obligatoria; aceptables como PoC).
-7. Versiones inconsistentes: `setup.py` = 1.0.0 vs `__init__.py` = 1.3.0; `requirements.txt` incluye `matplotlib` que `setup.py` omite.
-8. **Sin `.gitignore`: los `.pyc`/`__pycache__` están commiteados** (verificado con `git ls-files`).
+7. Versiones inconsistentes: `setup.py` = 1.0.0 vs `__init__.py` = 1.3.0; `requirements.txt` incluye `matplotlib` que `setup.py` omite. ✅ *(resuelto: versión unificada 1.3.0, ver §6-7)*
+8. **Sin `.gitignore`: los `.pyc`/`__pycache__` están commiteados** (verificado con `git ls-files`). ✅ *(resuelto: `.gitignore` creado y `.pyc` retirados del índice, ver §6-7)*
 9. Los hacks de encoding UTF-8 de consola Windows están duplicados en cada test (candidato a utilidad compartida).
 
 ---
@@ -152,13 +152,13 @@ Estos son los tres cimientos de credibilidad del proyecto y **se sostienen**.
 
 ### 3.3 Z_k grokking (`test_zk_group_expressivity.py`)
 - La idea (β complejo ⇒ autovalores unitarios ⇒ conteo cíclico nativo) es el aporte más interesante, y la aritmética modular acumulativa es un test limpio.
-- Debilidades: n=3 semillas; presupuesto fijo de 1500 pasos con lr único (el Transformer queda en 77% en Z_7 — probablemente infraentrenado, no "incapaz"); y el bloque `ComplexBetaDeltaPhaseBlock` **existe solo inline en el test**, no en la librería.
+- Debilidades vigentes: n=3 semillas y presupuesto fijo de 1500 pasos con lr único (el Transformer queda en 77% en Z_7 — probablemente infraentrenado, no "incapaz"). ✅ *(el bloque `ComplexBetaDeltaPhaseBlock` ya NO vive solo inline: está integrado en `delta_phase/layers.py` con streaming `step()`, conectado a `DeltaPhaseModel(beta_mode='complex')` y testeado — ver R3/Fase 6)*
 - Nota matemática positiva: verifiqué que `β = 1+e^{iφ}` produce σ_max = 1 exacto (isometría), así que la motivación teórica es sólida; falta demostrar que la ventaja persiste con presupuestos de entrenamiento igualados.
 
 ### 3.4 Otros tests
 - `test_quantized_phasors_poc.py`: correcto como PoC de ALU modular uint8/uint16 con LUT; el speedup 8.12× es de microbenchmark de binding, no end-to-end.
-- `test_spin_glass_recurrent_relaxation.py`, `test_pointer_augmented_memory_poc.py`, `test_spectral_wave_generation.py`: PoCs autocontenidos razonables, ninguno integrado al paquete.
-- Calidad de test general: **mayoría son scripts con prints, no asserts pytest** (solo `test_equivalence` falla loudly). Sin CI. Repetición manual requerida.
+- `test_spin_glass_recurrent_relaxation.py`, `test_pointer_augmented_memory_poc.py`, `test_spectral_wave_generation.py`: PoCs autocontenidos razonables.
+- Calidad de test general: ✅ *(resuelto desde la auditoría original: existe suite pytest con asserts y CI — `pytest.ini` + `.github/workflows/ci.yml`, Fase 5; los PoCs restantes siguen como scripts ejecutables fuera de la whitelist de pytest)*.
 
 ### 3.5 Consistencia documental
 - ✅ `docs/rigorous_mqar_results.json`, `capacity_matched_mqar_results.log` y `docs/niah_e2e_results.json` ↔ tablas README/paper: reconciliación completa.

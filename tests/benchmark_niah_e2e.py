@@ -27,6 +27,11 @@ Task structure per sequence (vocab=129):
 
 Metric: exact-match accuracy at the final position over randomized trials.
 Diagnostic: mean learned beta_t at the needle-key position vs noise positions (last layer).
+
+Certified GPU variant (Tesla T4, multi-seed): `tests/benchmark_niah_e2e_colab.py`
+-> results archived in `docs/niah_e2e_results.json` and summarized in
+`docs/project_audit_2026-08.md` §3.2. This CPU-friendly script implements the same
+protocol and additionally supports --noise-mode pad (crosstalk diagnostic).
 """
 
 import os
@@ -309,10 +314,7 @@ if __name__ == "__main__":
     if args.long:
         lengths += [16384, 65536]
 
-    if args.noise_mode == "pad":
-        # Diagnostic mode: filler = PAD (id 0) instead of random noise tokens.
-        global NOISE_LO, NOISE_HI
-        NOISE_LO, NOISE_HI = 0, 1
+    apply_noise_mode(args.noise_mode)
 
     if args.quick:
         run_suite(arms=["learned"], seeds=[42], steps=30, train_len=128, batch_size=8,
