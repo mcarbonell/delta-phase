@@ -34,61 +34,60 @@ if TRITON_AVAILABLE:
         theta_k_ptr,
         beta_ptr,
         gram_out_ptr,
-        B, H, num_chunks, C, D_K,
-        stride_b, stride_h, stride_nc, stride_c, stride_dk,
-        stride_beta_b, stride_beta_h, stride_beta_nc, stride_beta_c,
-        stride_g_b, stride_g_h, stride_g_nc, stride_g_i, stride_g_j,
-        inv_dk: tl.constexpr,
-        BLOCK_C: tl.constexpr
+        C, D_K,
+        stride_k_m, stride_k_d,
+        stride_beta,
+        stride_g_m, stride_g_n,
+        inv_dk,
+        BLOCK_C: tl.constexpr,
+        BLOCK_D: tl.constexpr,
     ):
         """
-        Fused Intra-Chunk Complex Phasor Gram Matrix:
-        Gram[i, j] = 1/d_k * Re(K_i * conj(K_j)) = 1/d_k * cos(theta_i - theta_j) * beta_j (for i > j)
+        Tiled fused intra-chunk phasor Gram matrix (one program per flattened matrix).
+
+        Computes, for a single (batch, head, chunk) matrix of key angles:
+            Gram[m, n] = (1/d_k) * sum_d cos(theta_m,d - theta_n,d) * beta_m   (strictly lower, m > n)
+            Gram[m, n] = 0 elsewhere (diagonal, upper triangle, and padding are written as 0).
+
+        NOTE the beta convention matches the PyTorch reference in delta_phase.layers:
+        ROW scaling by beta_m (not column scaling). The full matrix is materialized so
+        no output element is left uninitialized.
+
+        Layout contract: theta_k and beta are pre-flattened to (N_matrices, C, D_K) and
+        (N_matrices, C); the grid is (N_matrices,).
         """
-        pid_b = tl.program_id(0)
-        pid_h = tl.program_id(1)
-        pid_chunk = tl.program_id(2)
+        pid = tl.program_id(0)
 
-        # Offsets
-        row_idx = tl.arange(0, BLOCK_C)
-        col_idx = tl.arange(0, BLOCK_C)
+        m_idx = tl.arange(0, BLOCK_C)
+        n_idx = tl.arange(0, BLOCK_C)
+        d_idx = tl.arange(0, BLOCK_D)
+        mask_m = m_idx < C
+        mask_d = d_idx < D_K
 
-        # Base pointers for this (b, h, chunk)
-        base_k = (
-            pid_b * stride_b +
-            pid_h * stride_h +
-            pid_chunk * stride_nc
-        )
-        base_beta = (
-            pid_b * stride_beta_b +
-            pid_h * stride_beta_h +
-            pid_chunk * stride_beta_nc
-        )
+        base_k = theta_k_ptr + pid * C * stride_k_m
 
-        # Compute cosine difference across dk channels
-        # Gram_ij = sum_d cos(theta_i,d - theta_j,d)
-        for i in range(BLOCK_C):
-            for j in range(BLOCK_C):
-                if i > j:
-                    # Accumulate cos(theta_i - theta_j) across D_K
-                    cos_sum = 0.0
-                    for d in range(D_K):
-                        th_i = tl.load(theta_k_ptr + base_k + i * stride_c + d * stride_dk)
-                        th_j = tl.load(theta_k_ptr + base_k + j * stride_c + d * stride_dk)
-                        cos_sum += tl.cos(th_i - th_j)
-                    
-                    beta_val = tl.load(beta_ptr + base_beta + j * stride_beta_c)
-                    val = (cos_sum * inv_dk) * beta_val
-                    
-                    out_ptr = (
-                        gram_out_ptr +
-                        pid_b * stride_g_b +
-                        pid_h * stride_g_h +
-                        pid_chunk * stride_g_nc +
-                        i * stride_g_i +
-                        j * stride_g_j
-                    )
-                    tl.store(out_ptr, val)
+        # (BLOCK_C, BLOCK_D) tiles of the SAME angle matrix -> pairwise differences.
+        th_m = tl.load(base_k + m_idx[:, None] * stride_k_m + d_idx[None, :] * stride_k_d,
+                       mask=mask_m[:, None] & mask_d[None, :], other=0.0)
+        th_n = tl.load(base_k + n_idx[:, None] * stride_k_m + d_idx[None, :] * stride_k_d,
+                       mask=mask_m[:, None] & mask_d[None, :], other=0.0)
+
+        # Gram[m, n] = sum_d cos(th_m - th_n) / d_k   via a (BLOCK_C, BLOCK_C, BLOCK_D) tile.
+        diff = th_m[:, None, :] - th_n[None, :, :]
+        gram = tl.sum(tl.cos(diff), axis=2) * inv_dk
+
+        # ROW scaling by beta_m (PyTorch-reference convention).
+        beta_m = tl.load(beta_ptr + pid * C * stride_beta + m_idx * stride_beta,
+                         mask=mask_m, other=0.0)
+        val = gram * beta_m[:, None]
+
+        # Keep strictly-lower entries only; write zeros everywhere else (no uninitialized memory).
+        keep = (m_idx[:, None] > n_idx[None, :]) & mask_m[:, None] & mask_m[None, :]
+        val = tl.where(keep, val, 0.0)
+
+        out_ptrs = (gram_out_ptr + pid * C * stride_g_m
+                    + m_idx[:, None] * stride_g_m + n_idx[None, :] * stride_g_n)
+        tl.store(out_ptrs, val, mask=mask_m[:, None] & mask_m[None, :])
 
 
     @triton.jit
@@ -157,6 +156,25 @@ if TRITON_AVAILABLE:
 # =====================================================================
 # 2. Python Reference Implementation & Dispatcher
 # =====================================================================
+
+def gram_matrix_reference(theta_k: torch.Tensor, beta: torch.Tensor) -> torch.Tensor:
+    """
+    PyTorch reference for the tiled Triton Gram kernel.
+
+    theta_k: (N, C, D_K) real angles; beta: (N, C). Returns (N, C, C):
+        G[m, n] = (1/d_k) * sum_d cos(theta_m - theta_n) * beta_m, strictly lower; 0 elsewhere.
+    Uses cos(a-b) = cos a cos b + sin a sin b (vectorized, no Python loops).
+    """
+    inv_dk = 1.0 / float(theta_k.shape[-1])
+    cos_k = torch.cos(theta_k)
+    sin_k = torch.sin(theta_k)
+    gram = (torch.matmul(cos_k, cos_k.transpose(-1, -2))
+            + torch.matmul(sin_k, sin_k.transpose(-1, -2))) * inv_dk
+    gram = gram * beta.unsqueeze(-1)                       # row scaling by beta_m
+    C = theta_k.shape[-2]
+    keep = torch.tril(torch.ones(C, C, dtype=torch.bool, device=theta_k.device), diagonal=-1)
+    return torch.where(keep, gram, torch.zeros_like(gram))
+
 
 def _chunkwise_delta_reference(theta_k, theta_q, v, beta, chunk_size=64, initial_state=None):
     """

@@ -197,9 +197,9 @@ Estos son los tres cimientos de credibilidad del proyecto y **se sostienen**.
 
 **P2 — Mejoras:**
 
-8. 🔴 **PENDIENTE.** Soporte AMP: mantener θ en dtype del modelo o documentar la restricción FP32.
-9. 🔴 **PENDIENTE.** Vectorizar `LaplacePhaseCore` y el kernel Gram Triton con tiles.
-10. 🔴 **PENDIENTE.** Ablation del router de sustratos: FWHT/DCT/Haar vs MLP gated de igual presupuesto.
+8. ✅ **COMPLETADO (22‑08‑2026).** Política de dtype explícita y testeada: la trigonometría fasorial (cos/sin → `torch.complex`/`torch.polar`) se computa siempre en FP32/FP64 con casts explícitos documentados en `layers.py` (bf16 corrompe la fase y `torch.complex` no soporta bf16 — `LaplacePhaseCore` y `ComplexBetaDeltaPhaseBlock` crasheaban bajo autocast antes del hardening). Suite nueva `tests/test_amp_dtypes.py` (5 tests, incl. equivalencia paralelo/secuencial bajo bf16 y gradcheck FP64).
+9. ✅ **COMPLETADO (22‑08‑2026, parcial en GPU).** (a) `LaplacePhaseCore` vectorizado: forma chunkwise **exacta** (sin aproximación) vía cumsum log-space + solve triangular batched por canal de salida — equivalencia vs el oráculo secuencial ≤ 4.1e−7 en todas las longitudes/profundidades de decaimiento (`tests/test_laplace_chunkwise.py`, 8 tests); speedup medido **2.45×** a L=1024/d=256 (crece con L). (b) Kernel Gram Triton reescrito con tiles `(BLOCK_C, BLOCK_C, BLOCK_D)` (antes bucles escalares triples), convención β corregida a escalado por filas (coincide con PyTorch) y matriz completa materializada sin celdas sin inicializar; paridad kernel↔referencia cubierta por test (skip automático sin CUDA).
+10. ✅ **COMPLETADO (22‑08‑2026, resultado honesto).** Ablation del router ejecutado (`tests/benchmark_ffn_router_ablation.py`, protocolo MQAR certificado N=16, 3 semillas, iso-presupuesto ~4d²): **precisión estadísticamente indistinguible** (LerpFFN 99.05–99.11% vs MLP-gated 99.15–99.26%; Δ < 1 SE) y el MLP corre ~2× más rápido por paso; **pero el router SÍ aprende una preferencia de sustrato reproducible** (FWHT ≈43% > DCT ≈35% > Haar ≈21%, replicada en 3 semillas). Conclusión: el multi-sustrato no gana en precisión/velocidad a esta escala; su valor queda como mecanismo de inducción de sesgo estructural pendiente de demostrar. Datos: `docs/ffn_router_ablation_results.json`.
 
 ---
 
@@ -252,6 +252,13 @@ Estos son los tres cimientos de credibilidad del proyecto y **se sostienen**.
 - Conexión con `DeltaPhaseModel(beta_mode='complex')` en `delta_phase/model.py`.
 - Exportación formal en `delta_phase/__init__.py`.
 - Suite dedicada en `tests/test_integrated_cores.py` (32/32 tests totales pasando en verde en pytest).
+
+### Fase 7 — Mejoras P2: AMP, Vectorización y Ablation del Router (22‑08‑2026)
+- **P2-8 (dtype/AMP):** política explícita FP32/FP64 para trigonometría fasorial documentada a nivel de módulo; hardening de `LaplacePhaseCore` y `ComplexBetaDeltaPhaseBlock` (crasheaban bajo autocast bf16 vía `torch.complex`/`torch.polar`); nueva suite `tests/test_amp_dtypes.py` (5 tests).
+- **P2-9a (Laplace chunkwise):** derivada e implementada la forma chunkwise **exacta** del núcleo Laplace (el decaimiento actúa sobre filas ⇒ los coeficientes intra-chunk son el Gram plano y el decay factoriza en log-space; solve triangular batched por canal). Equivalencia vs oráculo secuencial ≤ 4.1e−7 (`tests/test_laplace_chunkwise.py`, 8 tests); speedup 2.45× a L=1024.
+- **P2-9b (Triton tiles):** kernel Gram reescrito vectorizado, convención β corregida (filas) y matriz completa sin huecos; referencia testeable en CPU (`gram_matrix_reference`) + test de paridad GPU con skip automático.
+- **P2-10 (ablation router):** ejecutado bajo protocolo certificado — resultado honesto: precisión indistinguible vs MLP iso-presupuesto (~2× más lento por paso), pero preferencia de sustrato aprendida reproducible (FWHT > DCT > Haar). Datos en `docs/ffn_router_ablation_results.json`.
+- Suite completa tras Fase 7: **53 passed, 1 skipped** (skip = paridad Triton que requiere CUDA).
 
 
 

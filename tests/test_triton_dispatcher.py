@@ -11,8 +11,15 @@ import torch
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from delta_phase.kernels.triton_chunk_delta import (
-    delta_phase_chunkwise_fused, _chunkwise_delta_reference
+    delta_phase_chunkwise_fused, _chunkwise_delta_reference, gram_matrix_reference
 )
+from delta_phase.kernels import triton_available
+
+try:
+    from delta_phase.kernels.triton_chunk_delta import _triton_fused_phase_gram_kernel
+    HAS_KERNEL_SYMBOL = True
+except ImportError:
+    HAS_KERNEL_SYMBOL = False
 
 
 def test_dispatcher_gradient_flow():
@@ -65,3 +72,52 @@ def test_dispatcher_inference_matches_reference():
 
     assert out_diff < 1e-6
     assert state_diff < 1e-6
+
+
+# ---------------------------------------------------------------------
+# Tiled Gram kernel: reference correctness (CPU) + GPU parity (skipped w/o CUDA)
+# ---------------------------------------------------------------------
+
+def test_gram_reference_matches_naive_loop():
+    """gram_matrix_reference must equal the literal cos(theta_i - theta_j) definition."""
+    torch.manual_seed(0)
+    N, C, D = 3, 8, 16
+    theta = torch.randn(N, C, D)
+    beta = torch.rand(N, C)
+
+    ref = gram_matrix_reference(theta, beta)
+
+    naive = torch.zeros(N, C, C)
+    for n in range(N):
+        for i in range(C):
+            for j in range(C):
+                if i > j:
+                    val = torch.cos(theta[n, i] - theta[n, j]).sum() / D * beta[n, i]
+                    naive[n, i, j] = val
+
+    assert (ref - naive).abs().max().item() < 1e-5
+    # Upper triangle, diagonal and only-lower are exactly as specified.
+    assert torch.triu(ref, diagonal=0).abs().max().item() == 0.0
+
+
+@pytest.mark.skipif(not (triton_available() and HAS_KERNEL_SYMBOL),
+                    reason="Triton + CUDA not available")
+def test_triton_gram_kernel_matches_reference():
+    torch.manual_seed(0)
+    N, C, D = 4, 32, 64
+    theta = torch.randn(N, C, D, device="cuda")
+    beta = torch.rand(N, C, device="cuda")
+
+    out = torch.empty(N, C, C, device="cuda")
+    grid = (N,)
+    _triton_fused_phase_gram_kernel[grid](
+        theta, beta, out,
+        C, D,
+        theta.stride(-2), theta.stride(-1),
+        beta.stride(-1),
+        out.stride(-2), out.stride(-1),
+        1.0 / float(D),
+        BLOCK_C=32, BLOCK_D=64,
+    )
+    ref = gram_matrix_reference(theta, beta)
+    assert (out - ref).abs().max().item() < 1e-4
