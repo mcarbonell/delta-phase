@@ -213,7 +213,7 @@ Evaluates Generalized Complex Householder Reflections $\beta_t = 1 + e^{i\varphi
 ### 4. GPU Wall-Clock Scaling & Softmax OOM Immunity (NVIDIA Tesla T4)
 Evaluates real-time execution latency and VRAM allocation on an NVIDIA Tesla T4 GPU ([`docs/findings_gpu_triton_wallclock_benchmark.md`](docs/findings_gpu_triton_wallclock_benchmark.md) / [`notebooks/benchmark_triton_gpu.ipynb`](notebooks/benchmark_triton_gpu.ipynb)).
 
-> 📝 **Nota de precisión:** el benchmark mide la **implementación chunkwise paralela en PyTorch** (forward-only, `torch.no_grad()`). Los kernels Triton de `delta_phase/kernels/` son experimentales y **no se usaron en esta medición** (backward aún no implementado).
+> 📝 **Nota de precisión (veredicto cerrado):** este benchmark mide la **implementación chunkwise paralela en PyTorch** (forward-only, `torch.no_grad()`). El kernel Triton de `delta_phase/kernels/` fue **validado numéricamente en Tesla T4** (paridad 9/9 configs, peor diff 2.7e−7 — `tests/validate_triton_kernel_gpu.py`, `docs/triton_kernel_gpu_validation.json`), pero el benchmark honesto muestra que **el Gram PyTorch vectorizado es 3–10× más rápido** en todas las configuraciones probadas: la afinidad fasorial se reduce a $\cos(\Theta)\cos(\Theta)^T + \sin(\Theta)\sin(\Theta)^T$, dos GEMM cuBLAS que no se superan a mano. **Ruta de producción: PyTorch. Kernel Triton archivado como experimento validado.**
 
 | Sequence Length ($L$) | DeltaPhase Chunkwise ($O(N)$) | Softmax Attention ($O(N^2)$) | Scaling Factor | VRAM Peak (MB) | Softmax Status |
 | :---: | :---: | :---: | :---: | :---: | :---: |
@@ -276,6 +276,9 @@ python tests/test_spectral_wave_generation.py
 
 # 9. FFN Substrate Router Ablation (Lerp FFN vs iso-budget gated MLP + learned router report)
 python tests/benchmark_ffn_router_ablation.py --seeds 42 137 2024 --pairs 16
+
+# 10. Triton Kernel GPU Validation (parity + dispatcher + bf16 + honest benchmark; requires CUDA)
+python tests/validate_triton_kernel_gpu.py
 
 # Full automated suite (54 tests: equivalence, gradcheck FP64, AMP/bf16, Laplace chunkwise,
 # integrated cores, Triton dispatcher, smoke MQAR/NIAH) via GitHub Actions or locally:

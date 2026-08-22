@@ -1,0 +1,133 @@
+{
+  "date": "2026-08-22T13:48:02.447195+00:00",
+  "env": {
+    "python": "3.12.13",
+    "torch": "2.10.0+cu128",
+    "gpu": "Tesla T4",
+    "cc": "7.5"
+  },
+  "pytest": {
+    "returncode": 0,
+    "tail": "tests/test_triton_dispatcher.py ....                                     [100%]\n\n============================== 4 passed in 25.18s =============================="
+  },
+  "parity": {
+    "worst_diff": 2.682209014892578e-07,
+    "configs": [
+      {
+        "C": 16,
+        "dk": 16,
+        "max_diff": 1.1920928955078125e-07,
+        "strict_upper_max": 0.0,
+        "pass": true
+      },
+      {
+        "C": 32,
+        "dk": 32,
+        "max_diff": 1.1920928955078125e-07,
+        "strict_upper_max": 0.0,
+        "pass": true
+      },
+      {
+        "C": 48,
+        "dk": 32,
+        "max_diff": 1.7881393432617188e-07,
+        "strict_upper_max": 0.0,
+        "pass": true
+      },
+      {
+        "C": 64,
+        "dk": 64,
+        "max_diff": 2.086162567138672e-07,
+        "strict_upper_max": 0.0,
+        "pass": true
+      },
+      {
+        "C": 64,
+        "dk": 96,
+        "max_diff": 2.682209014892578e-07,
+        "strict_upper_max": 0.0,
+        "pass": true
+      },
+      {
+        "C": 100,
+        "dk": 80,
+        "max_diff": 2.384185791015625e-07,
+        "strict_upper_max": 0.0,
+        "pass": true
+      },
+      {
+        "C": 128,
+        "dk": 64,
+        "max_diff": 2.384185791015625e-07,
+        "strict_upper_max": 0.0,
+        "pass": true
+      },
+      {
+        "C": 64,
+        "dk": 128,
+        "max_diff": 2.682209014892578e-07,
+        "strict_upper_max": 0.0,
+        "pass": true
+      },
+      {
+        "C": 128,
+        "dk": 128,
+        "max_diff": 2.682209014892578e-07,
+        "strict_upper_max": 0.0,
+        "pass": true
+      }
+    ]
+  },
+  "dispatcher": {
+    "grad_ok": true,
+    "grad_vs_nograd_max_diff": 0.0
+  },
+  "block_cuda": {
+    "fp32_equiv_max_diff": 2.8014183044433594e-06,
+    "bf16_autocast_ok": true
+  },
+  "benchmark": [
+    {
+      "C": 32,
+      "dk": 32,
+      "triton_ms": 1.3515199422836304,
+      "pytorch_ms": 0.4026559889316559,
+      "speedup": 0.2979282630867421
+    },
+    {
+      "C": 64,
+      "dk": 32,
+      "triton_ms": 5.244927883148193,
+      "pytorch_ms": 0.6256639957427979,
+      "speedup": 0.11928934194749155
+    },
+    {
+      "C": 64,
+      "dk": 64,
+      "triton_ms": 5.2870402336120605,
+      "pytorch_ms": 0.7458239793777466,
+      "speedup": 0.14106644671175617
+    },
+    {
+      "C": 128,
+      "dk": 64,
+      "triton_ms": 18.59174346923828,
+      "pytorch_ms": 2.383552074432373,
+      "speedup": 0.12820487106957856
+    },
+    {
+      "C": 64,
+      "dk": 128,
+      "triton_ms": 8.297599792480469,
+      "pytorch_ms": 1.0176960229873657,
+      "speedup": 0.1226494466399346
+    },
+    {
+      "C": 128,
+      "dk": 128,
+      "triton_ms": 33.4727668762207,
+      "pytorch_ms": 3.2748799324035645,
+      "speedup": 0.09783714458125847
+    }
+  ]
+}

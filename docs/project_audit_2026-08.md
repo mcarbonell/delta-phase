@@ -14,7 +14,7 @@
 | Implementación del bloque principal | ✅ Sólida, con reservas menores de ingeniería |
 | Benchmark MQAR (comparativa principal) | ✅ **Resuelto / Certificado** (Control iso-floats 3000 pasos completado; demuestra aceleración de grokking 1.38×–1.74× y equivalencia asintótica) |
 | Benchmarks NIAH / gating selectivo | ✅ **Resuelto / Certificado** — aguja aleatoria por trial, gating aprendido vs control β=1 (3 semillas, GPU) |
-| Kernels Triton "fused" | 🟡 Mitigado el 2026‑08‑21 (dispatcher enruta llamadas con gradiente a la ruta PyTorch diferenciable); los kernels Triton siguen sin usarse en el benchmark de GPU y son experimentales |
+| Kernels Triton | ✅ **CERRADO (2026‑08‑22, validación T4)**: paridad numérica 9/9 configs (peor diff 2.7e−7); benchmark honesto: **la vía PyTorch vectorizada gana 6/6 configs por 3–10×** (el Gram se reduce a 2 GEMM cuBLAS post cos/sin) ⇒ producción = PyTorch; kernel archivado como experimento validado |
 | Cores secundarios (LogicPhase, Laplace, ComplexBeta) | ✅ **Integrados** en `delta_phase/layers.py` (Fase 6), exportados y testeados (`test_integrated_cores.py`, 32/32 verde) |
 | Consistencia documental | ✅ Reconciliado: paper draft y README alineados con resultados multi-semilla certificados |
 
@@ -79,10 +79,10 @@ Estos son los tres cimientos de credibilidad del proyecto y **se sostienen**.
 
 **Críticos:**
 1. **`delta_phase/kernels/triton_chunk_delta.py`:**
-   - `DeltaPhaseTritonFunction.backward` lanza `NotImplementedError`. Al envolver operaciones PyTorch puras en un `autograd.Function` sin backward, **cualquier intento de entrenar a través de `delta_phase_chunkwise_fused` rompe el grafo**. Riesgo alto de uso indebido por terceros.
-   - El kernel `_triton_fused_phase_gram_kernel` usa bucles escalares triples (`for i… for j… for d…` con `tl.load` elemento a elemento): sería dramáticamente más lento que un matmul si llegara a usarse.
-   - El kernel solo escribe entradas estrictamente inferiores de Gram; las demás quedan sin inicializar (lectura de memoria basura potencial).
-2. **El benchmark de GPU no usa los kernels Triton:** inspección de `notebooks/benchmark_triton_gpu.ipynb` → 0 referencias a `DeltaPhaseTritonFunction`/`delta_phase_chunkwise_fused`, ejecución bajo `torch.no_grad()`. Los números de wall-clock (122.6K tok/s, escalado ~2× por duplicación de L) son plausibles **pero corresponden a la ruta PyTorch chunkwise pura**, no a kernels "fused Triton" como afirman README y paper. Además es benchmark solo-inferencia (sin backward).
+   - `DeltaPhaseTritonFunction.backward` lanza `NotImplementedError`. Al envolver operaciones PyTorch puras en un `autograd.Function` sin backward, **cualquier intento de entrenar a través de `delta_phase_chunkwise_fused` rompe el grafo**. Riesgo alto de uso indebido por terceros. ✅ *(resuelto 21‑08: dispatcher enruta gradiente a la ruta diferenciable; ver §6‑4)*
+   - El kernel `_triton_fused_phase_gram_kernel` usa bucles escalares triples (`for i… for j… for d…` con `tl.load` elemento a elemento): sería dramáticamente más lento que un matmul si llegara a usarse. ✅ *(reescrito con tiling 2D el 22‑08; destino final en §6‑9 y Fase 8)*
+   - El kernel solo escribe entradas estrictamente inferiores de Gram; las demás quedan sin inicializar (lectura de memoria basura potencial). ✅ *(corregido: matriz completa materializada con ceros)*
+2. **El benchmark de GPU no usa los kernels Triton:** inspección de `notebooks/benchmark_triton_gpu.ipynb` → 0 referencias a `DeltaPhaseTritonFunction`/`delta_phase_chunkwise_fused`, ejecución bajo `torch.no_grad()`. Los números de wall-clock (122.6K tok/s, escalado ~2× por duplicación de L) son plausibles **pero corresponden a la ruta PyTorch chunkwise pura**, no a kernels "fused Triton" como afirman README y paper. Además es benchmark solo-inferencia (sin backward). ✅ *(documentado y re-etiquetado en README/paper; veredicto definitivo del kernel en Fase 8)*
 
 **Menores:**
 3. `LearnableSubstrateLerpFFN`: `substrate_logits` hardcodeado a 3 mientras existe el parámetro `num_banks` (=4) con otra semántica (bancos de fase, no sustratos). API confusa.
@@ -198,7 +198,7 @@ Estos son los tres cimientos de credibilidad del proyecto y **se sostienen**.
 **P2 — Mejoras:**
 
 8. ✅ **COMPLETADO (22‑08‑2026).** Política de dtype explícita y testeada: la trigonometría fasorial (cos/sin → `torch.complex`/`torch.polar`) se computa siempre en FP32/FP64 con casts explícitos documentados en `layers.py` (bf16 corrompe la fase y `torch.complex` no soporta bf16 — `LaplacePhaseCore` y `ComplexBetaDeltaPhaseBlock` crasheaban bajo autocast antes del hardening). Suite nueva `tests/test_amp_dtypes.py` (5 tests, incl. equivalencia paralelo/secuencial bajo bf16 y gradcheck FP64).
-9. ✅ **COMPLETADO (22‑08‑2026, parcial en GPU).** (a) `LaplacePhaseCore` vectorizado: forma chunkwise **exacta** (sin aproximación) vía cumsum log-space + solve triangular batched por canal de salida — equivalencia vs el oráculo secuencial ≤ 4.1e−7 en todas las longitudes/profundidades de decaimiento (`tests/test_laplace_chunkwise.py`, 8 tests); speedup medido **2.45×** a L=1024/d=256 (crece con L). (b) Kernel Gram Triton reescrito con tiles `(BLOCK_C, BLOCK_C, BLOCK_D)` (antes bucles escalares triples), convención β corregida a escalado por filas (coincide con PyTorch) y matriz completa materializada sin celdas sin inicializar; paridad kernel↔referencia cubierta por test (skip automático sin CUDA).
+9. ✅ **COMPLETADO (22‑08‑2026, validación GPU T4 incluida).** (a) `LaplacePhaseCore` vectorizado: forma chunkwise **exacta** (sin aproximación) vía cumsum log-space + solve triangular batched por canal de salida — equivalencia vs el oráculo secuencial ≤ 4.1e−7 en todas las longitudes/profundidades de decaimiento (`tests/test_laplace_chunkwise.py`, 8 tests); speedup medido **2.45×** a L=1024/d=256 (crece con L). (b) Kernel Gram Triton reescrito con tiling 2D flash-attention (tiles 32×32×32; la v1 con matriz entera por programa colgaba al compilador en C=128 y tenía un bug de lanes enmascaradas que sumaba cos(0)=1 cuando dk no es múltiplo del tile). **Validación en Tesla T4** (`tests/validate_triton_kernel_gpu.py` → `docs/triton_kernel_gpu_validation.json`): paridad 9/9 configs (peor diff 2.7e−7), dispatcher con gradientes ✅, equivalencia bloque FP32 2.8e−6, bf16 autocast ✅, y el test pytest que llevaba meses en skip pasa (4/4). **Veredicto de rendimiento (honesto): PyTorch vectorizado gana 6/6 configs por 3–10×** — el Gram fasorial se reduce a `cos(Θ)cos(Θ)ᵀ + sin(Θ)sin(Θ)ᵀ`, dos GEMM cuBLAS que ningún kernel manual razonable supera. **Decisión: producción = PyTorch; kernel Triton archivado como experimento validado.**
 10. ✅ **COMPLETADO (22‑08‑2026, resultado honesto).** Ablation del router ejecutado (`tests/benchmark_ffn_router_ablation.py`, protocolo MQAR certificado N=16, 3 semillas, iso-presupuesto ~4d²): **precisión estadísticamente indistinguible** (LerpFFN 99.05–99.11% vs MLP-gated 99.15–99.26%; Δ < 1 SE) y el MLP corre ~2× más rápido por paso; **pero el router SÍ aprende una preferencia de sustrato reproducible** (FWHT ≈43% > DCT ≈35% > Haar ≈21%, replicada en 3 semillas). Conclusión: el multi-sustrato no gana en precisión/velocidad a esta escala; su valor queda como mecanismo de inducción de sesgo estructural pendiente de demostrar. Datos: `docs/ffn_router_ablation_results.json`.
 
 ---
@@ -213,7 +213,7 @@ Estos son los tres cimientos de credibilidad del proyecto y **se sostienen**.
 | MQAR: ventaja de convergencia sobre Gated DeltaNet | ✅ | Certificado con control $d_k=45$ iso-floats (1.38×–1.74× aceleración a $>95\%$) |
 | MQAR: "matching Softmax Transformer" | ✅ | $99.45\%$ vs $99.62\%$ en $N=32$; Transformer retiene leve ventaja en velocidad |
 | NIAH: recuperación asociativa end-to-end | ✅ | Certificado con aguja aleatoria por trial: $100\%$ en $L \le 512$, $98\%$ en $L=1024$; gating aprendido supera a $\beta=1.0$ |
-| "Fused Triton kernels" 122K tok/s | 🟡 | Wall-clock real, pero ruta PyTorch chunkwise; dispatcher diferenciable activo |
+| "Fused Triton kernels" 122K tok/s | ✅ Cerrado | Wall-clock real vía PyTorch chunkwise; kernel Triton validado en T4 (paridad 9/9) pero archivado: PyTorch gana 6/6 por 3–10× |
 | Z_k grokking nativo | ✅ | Mecanismo e isometría en $S^1$ verificados; `ComplexBetaDeltaPhaseBlock` integrado en librería y testeado |
 | Quantized phasors 8.12× | 🟡 | Microbenchmark de binding válido; sin end-to-end |
 | Laplace Hurwitz / estabilidad 100K tokens | ✅ | Construcción correcta (σ≤0 garantizado); integrado en `delta_phase.layers.LaplacePhaseCore` y testeado |
@@ -259,6 +259,12 @@ Estos son los tres cimientos de credibilidad del proyecto y **se sostienen**.
 - **P2-9b (Triton tiles):** kernel Gram reescrito vectorizado, convención β corregida (filas) y matriz completa sin huecos; referencia testeable en CPU (`gram_matrix_reference`) + test de paridad GPU con skip automático.
 - **P2-10 (ablation router):** ejecutado bajo protocolo certificado — resultado honesto: precisión indistinguible vs MLP iso-presupuesto (~2× más lento por paso), pero preferencia de sustrato aprendida reproducible (FWHT > DCT > Haar). Datos en `docs/ffn_router_ablation_results.json`.
 - Suite completa tras Fase 7: **53 passed, 1 skipped** (skip = paridad Triton que requiere CUDA).
+
+### Fase 8 — Validación GPU del Kernel Triton y Cierre (22‑08‑2026, Tesla T4)
+- Corregidos dos bugs descubiertos por la validación en GPU: (1) lanes enmascaradas del eje de canales sumaban cos(0)=1 al Gram cuando dk no es múltiplo del tile (fallaba C=16/dk=16 con diff≈0.998); (2) la arquitectura v1 (matriz entera por programa) colgaba al compilador de Triton en C=128. Reescrito con **tiling 2D flash-attention** + launcher de alto nivel `gram_matrix_triton`.
+- Ejecutada `tests/validate_triton_kernel_gpu.py` en Kaggle/Colab (Tesla T4, Triton 3.6): **paridad 9/9 configs** (peor diff 2.68e−7), dispatcher diferenciable ✅ (diff grad-vs-nograd = 0.0), equivalencia bloque FP32 2.8e−6, bf16 autocast ✅; el test pytest históricamente omitido pasa 4/4.
+- **Veredicto de rendimiento honesto:** el Gram PyTorch vectorizado (`cos·cosᵀ + sin·sinᵀ`, 2 GEMM cuBLAS) es **3–10× más rápido que el kernel Triton en 6/6 configs** (p. ej. C=128/dk=128: 3.3 ms vs 33.5 ms). Decisión de ingeniería: **la ruta de producción es PyTorch; el kernel Triton se archiva como experimento validado numéricamente**, sin promesas de "fused en desarrollo".
+- Resultados archivados en `docs/triton_kernel_gpu_validation.json`. Suite local: 53 passed / 1 skipped (el skip ya no aplica en GPU: 4/4 verificados en T4).
 
 
 
