@@ -119,6 +119,36 @@ Dos conclusiones:
 1. **El signo espinorial es un canal de información direccionable**: Q y −Q representan la misma orientación física, pero portan paridades de devanado distintas que SU(2) separa y SO(3) fusiona. La consulta discriminante es literalmente el truco del cinturón convertido en test de memoria.
 2. **HALLAZGO estructural (el más profundo de la frontera): las memorias de superposición lineal son ciegas al doble recubrimiento por construcción.** Toda la familia delta-rule —incluido el núcleo de DeltaPhase— direcciona linealmente: el crosstalk entre antípodas es |⟨Q,−Q⟩|=1 en cualquier esquema lineal/bilineal (real, complejo o cuaterniónico; verificado empíricamente antes de rediseñar). La información de devanado solo es explotable mediante una etapa NO lineal de cuantización/direccionamiento simbólico. Implicación arquitectónica: memoria topológica de camino en DeltaPhase exigiría un cabezal simbólico espinorial análogo al pointer-buffer semi-paramétrico existente — no puede emerger del estado lineal O(1) actual.
 
+#### Apéndice formal: Teorema de Canal Único Antipodal
+
+**Definiciones.** Sea $V$ el espacio de claves con producto interno bilineal/sesquilineal (real $\mathbb{R}^d$, complejo $\mathbb{C}^d$ o cuaterniónico $\mathbb{H}^d$ — el argumento es agnóstico al álgebra) y $W$ el espacio de valores. Una memoria de superposición lineal acumula escrituras
+$$M \;=\; \sum_{t} e_t \otimes k_t \;\in\; V \otimes W$$
+y lee mediante funcionales lineales en el estado con featurización arbitraria de la consulta:
+$$r(M, q) \;=\; \big\langle M,\; \varphi(q) \big\rangle_{V}, \qquad \varphi: V \to V \text{ cualquiera.}$$
+Toda la familia delta-rule (linear attention, fast weight programmers, Gated DeltaNet, el núcleo de DeltaPhase) tiene esta forma: *lineal en el estado*, featurización de consulta libre. El par antipodal es $\{Q, -Q\}$, que expande el subespacio $L = \mathrm{span}\{Q\}$, $\dim L = 1$.
+
+**Lema 1 (colapso rango-1).** Escrituras arbitrarias en direcciones colineales colapsan en un único término rango-1. Si se escribe $e_1$ en $Q$ (devanado impar) y $e_2$ en $-Q$ (par):
+$$M = e_1 \otimes Q + e_2 \otimes (-Q) = (e_1 - e_2)\otimes Q \;\in\; L \otimes W.$$
+El coeficiente $s := e_1 - e_2 \in W$ es la **suma con signos**: los dos valores ya no existen por separado dentro del estado. $\square$
+
+**Teorema (canal único antipodal).** Para cualquier featurización $\varphi$ —lineal, polinómica o no lineal arbitraria— y cualquier par de consultas $q_\pm = \pm Q$, las lecturas satisfacen
+$$r(M, q_\pm) \;=\; \alpha_\pm \cdot s, \qquad \alpha_\pm := \langle Q, \varphi(\pm Q)\rangle_V,$$
+es decir, **ambas lecturas son múltiplos escalares (conocidos) del mismo vector $s$**. Corolarios:
+1. La información extraíble del par antipodal es exactamente $s$: un solo vector de $W$. Los valores individuales $e_1, e_2$ son irrecuperables (infinitas descomposiciones $s = a - b$).
+2. El par aporta **un canal**, no dos: la capacidad dedicada de la pareja $\{Q,-Q\}$ es la de una sola dirección ($\dim L = 1$), aunque existan dos estados físicos distinguibles en el álgebra.
+3. La dicotomía par/impar de $\varphi$: componentes pares dan $\alpha_+ = \alpha_-$ (fusiona); impares dan $\alpha_- = -\alpha_+$ (invierte). Ninguna combinación produce dos canales independientes.
+
+*Demostración.* Toda escritura en $\{\pm Q\}$ vive en $L\otimes W$; luego $r(M,q)$ depende de $M$ solo vía su proyección sobre $L$, que es $s\otimes Q$. Para $q = \pm Q$: $\langle s\otimes Q, \varphi(\pm Q)\rangle_V = s\cdot\langle Q, \varphi(\pm Q)\rangle_V$ por bilinealidad en el factor $V$. $\blacksquare$
+
+**Observación (la no-conmutatividad no ayuda en la lectura).** El producto interno cuaterniónico hermitiano es igualmente lineal en el estado; su parte real da el mismo escalar. La no-conmutatividad opera en la *construcción* de claves (v2: composición que preserva orden), no en la *lectura* de superposiciones — niveles distintos, y el teorema aplica al segundo.
+
+**Frontera exacta de validez (qué NO afirma el teorema).**
+1. *Caso degenerado de escritura única:* si cada antípoda recibe exactamente una escritura, $s = e_1 - e_2$ y el NN-coseno resuelve ambos valores (cos ≈ ±0.71 con embeddings aleatorios). El bit sobrevive como **signo frágil sin capacidad dedicada**; muere bajo carga (segunda+ escritura en cualquiera de las dos direcciones ahoga el canal — observado empíricamente: fallos de su2 en caminatas largas, §Falsable #2).
+2. *No afirma que S³ sea inútil*: la composición ordenada de claves (v2, 100% zero-shot) ocurre ANTES de la memoria y es un resultado de construcción de claves, ortogonal a este teorema.
+3. *No aplica a memorias no lineales en el estado*: despacho por cuantización a símbolos discretos (lo ejecutado en el Falsable #2) enruta $\pm Q$ a dos ranuras separadas, restaurando dos canales — al costo de perder la composicionalidad continua (codebook finito).
+
+**Mapa empírico:** suelo plano 50.00±0.00 de hadamard/roletag en conflicto (Falsable #1, P3) = firma del canal único bajo acumulación hebbiana; contaminación de su2 en caminatas largas (Falsable #2, primera versión lineal) = el mismo teorema actuando entre antípodas; 100% vs 33–50% (Falsable #2, versión simbólica) = el contraste canales-1 vs canales-2.
+
 **Advertencias registradas de antemano:** presupuesto 4 flotantes/canal (vs 2 del complejo) — el confound de capacidad ya mordió una vez; emulación 4× ops reales sin GEMM nativo cuaterniónico (el hardware sopla en contra — lección Triton 6/6); riesgo de optimización más difícil por no-conmutatividad.
 
 ---
