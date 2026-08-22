@@ -153,6 +153,27 @@ es decir, **ambas lecturas son múltiplos escalares (conocidos) del mismo vector
 
 ---
 
+## 🧠 Frontera F — Memoria Relacional Ordenada: Internalizando la Cadena de Pensamiento
+
+**Doc detallado:** este apartado (formulada 22‑08‑2026; extensión directa de la Frontera E, cuyos resultados le sirven de cimiento).
+
+Hipótesis central: parte del trabajo que hoy hacen los LLM mediante *cadena de pensamiento externa* — escribir pasos intermedios porque la composición multi-salto latente es poco fiable — podría **internalizarse en el estado** mediante binding relacional ordenado. La distinción clave validada en la Frontera E: existen dos tipos de orden con destinos distintos —
+
+| Tipo de orden | Parche actual en LLMs | Estado del arte |
+| :--- | :--- | :--- |
+| **Temporal** (qué token vino antes) | Encodings posicionales (RoPE/ALiBi) | Madre y fuerte; el work-around aprendido resolvió 99% una tarea de orden sin estructura especial (Falsable v1) |
+| **Relacional** ((a,b) como unidad ≠ (b,a)) | Chain-of-thought externo + trucos internos aprendidos bajo interferencia | Mecanismo S³ certificado zero-shot al 100% hasta N=32 hechos (v2); ley de capacidad √N medida |
+
+Si el binding no conmutativo compone rutas multi-salto como entradas únicas fiables *dentro* del estado, parte del razonamiento que hoy se externaliza como texto podría volverse estructural. Capacidades candidatas a volverse innatas: asociación dirigida sin maquinaria posicional dedicada, composición de caminos A→B→C como producto único, historia-vs-estado vía doble recubrimiento.
+
+**Estado real hoy:** mecanismo de memoria ordenada validado a nivel álgebra (Frontera E: v2 + rodilla + doble recubrimiento). Cero integración en modelos entrenados. La hipótesis de internalización del CoT **no ha sido testeada**.
+
+**Criterio de promoción a POC-certificado (el experimento decisivo):** mismo modelo ±cabezal de memoria ordenada lateral (patrón pointer-buffer), evaluado en tareas de composición multi-salto con interferencia (grafos dirigidos, firmas de código, cadenas de dependencias), midiendo DOS ejes: (1) precisión, y (2) **dependencia de pasos intermedios externos** (¿resuelve latente lo que el baseline resuelve escribiendo?). Puerta de entrada: igualar precisión del baseline CON CoT reduciendo su necesidad de CoT, o superarlo, bajo controles iso-presupuesto. Prior honesto: la v1 mostró work-arounds posicionales fuertes — se espera victoria solo donde el orden relacional sea el cuello de botella real (no en modelado general, donde se predice neutralidad, como el router FFN).
+
+**Advertencias registradas:** costo cuaterniónico 4× sin GEMM nativo; riesgo de que el CoT externo sea insustituible para pasos que requieren decodificación a tokens (la memoria interna compone latente pero el output sigue siendo secuencial); confound de capacidad obligatorio en todo control.
+
+---
+
 ## 🔬 Nota final sobre método
 
 Las cuatro fronteras comparten el mismo patrón que ya funcionó dos veces en este repo: el claim original de MQAR sobrevivió a su control de capacidad solo después de recortarse a sí mismo (de "+22.82% de capacidad" a "aceleración de grokking 1.38×–1.74×"), y el kernel Triton pasó de promesa a archivado cuando el benchmark dijo que PyTorch ganaba 6/6. Las visiones de este documento merecen exactamente el mismo trato: **hipótesis baratas de escribir, caras de sostener — hasta que se miden.**
