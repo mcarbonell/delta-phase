@@ -24,3 +24,5 @@ Thumbs.db
 *.ckpt
 *.safetensors
 wandb/
+scratch/
+

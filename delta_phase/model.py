@@ -18,6 +18,7 @@ class DeltaPhaseConfig:
     conv_kernel_size: int = 4
     num_banks: int = 4
     weight_tying: bool = True
+    beta_mode: str = "learned"  # "learned": data-dependent beta_t | "fixed": beta_t = 1.0 (control arm)
 
 class DeltaPhaseModel(nn.Module):
     def __init__(self, config: DeltaPhaseConfig):
@@ -39,7 +40,8 @@ class DeltaPhaseModel(nn.Module):
                 n_heads=config.n_heads,
                 conv_kernel_size=config.conv_kernel_size,
                 chunk_size=config.chunk_size,
-                num_banks=config.num_banks
+                num_banks=config.num_banks,
+                beta_mode=config.beta_mode
             ) for _ in range(config.n_layers)
         ])
         
