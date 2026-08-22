@@ -32,7 +32,8 @@ Under the certified 4-arm capacity-matched MQAR protocol (`tests/capacity_matche
 ## 🌟 Key Innovations & Mathematical Precision
 
 > **Leyenda de estado** (ver `docs/project_audit_2026-08.md`):
-> **[CORE]** verificado en la librería con tests · **[POC]** prueba de concepto autocontenida en `tests/`, no integrada al modelo · **[VISIÓN]** especulativo, sin implementación.
+> **[CORE]** verificado en la librería con tests · **[POC]** prueba de concepto autocontenida en `tests/`, no integrada al modelo.
+> El material especulativo/visión **no se mezcla aquí**: vive exclusivamente en [`docs/speculative_visions_and_long_term_frontiers.md`](docs/speculative_visions_and_long_term_frontiers.md) con su contrato epistémico y criterios de promoción.
 
 ### 1. Extended Householder Beta Range $\beta \in (0, 2)$ & Contraction Stability [CORE]
 - **Contraction Spectrum $\beta \in (0, 2)$:** Parameterized via $\beta_t = 2.0 \cdot \text{sigmoid}(W_\beta x_t)$. While $\beta_t = 2.0$ represents exact Householder reflection isometry ($\det(H) = -1$), the continuous range $\beta_t \in (0, 2)$ satisfies the non-expansive contraction condition $|1 - \beta_t| < 1$, stabilizing recursive gradient flow.
@@ -99,19 +100,7 @@ $$K_t = e^{s_t \Delta t} = e^{\sigma_t \Delta t + i\theta_t \Delta t} = e^{\sigm
 
 ---
 
-### 7. Strategic Vision & Long-Term Paradigm Breakthroughs
-
-Beyond incremental speedups, DeltaPhase may unlock qualitative capabilities impossible in real-valued Euclidean networks ([`docs/vision_and_paradigm_breakthroughs.md`](docs/vision_and_paradigm_breakthroughs.md)):
-1. **24/7 Lifelong Streaming Agents:** In-context continuous Fast Weight learning with constant $O(1)$ memory footprint ($\approx 10\text{ MB}$) and zero catastrophic forgetting.
-2. **Latent Hypothesis Pruning via Wave Cancellation:** Superposing alternative hypothesis branches and invalidating dead ends in $O(1)$ via exact destructive interference ($\text{NOT} \to e^{i\pi} = -1$).
-3. **Sampling-Rate Invariant Telemetry:** Continuous-time physical modeling ($s = \sigma + i\omega$) adapting zero-shot to variable sensor clock frequencies ($\Delta t$).
-4. **Instant Zero-Shot Grokking:** Native $S^1 \cong U(1)$ circular geometry natively computes cyclic groups $\mathbb{Z}_k$ and permutation routing without real-valued grokking delays.
-5. **Silent Multi-Hop Graph Traversal:** In-memory feedback resonance executing $A \to B \to C \to D$ deductions without outputting intermediate surface tokens.
-6. **Photonic & Optical Hardware Isomorphism:** Direct 1:1 algebraic mapping to coherent laser phase shifters and optical interferometers for light-speed, low-power inference.
-
----
-
-### 8. Semi-Parametric Pointer-Augmented Token Buffer (Lossless Verbatim Code Copying) [POC]
+### 7. Semi-Parametric Pointer-Augmented Token Buffer (Lossless Verbatim Code Copying) [POC]
 
 `delta_phase` introduces an architecture extension coupling the $O(1)$ GPU DeltaPhase controller with a contiguous CPU/RAM token buffer ([`docs/pointer_augmented_token_buffer_architecture.md`](docs/pointer_augmented_token_buffer_architecture.md)):
 - **Decoupled Architecture:** DeltaPhase performs continuous semantic reasoning and grammatical flow in GPU VRAM, while a lightweight integer token array (`uint16` in system RAM) provides exact verbatim dereferencing.
@@ -120,7 +109,7 @@ Beyond incremental speedups, DeltaPhase may unlock qualitative capabilities impo
 
 ---
 
-### 9. Physical Spin Glass Foundations, Kuramoto Synchronization & Topological Memory [POC]
+### 8. Physical Spin Glass Foundations, Kuramoto Synchronization & Topological Memory [POC]
 
 DeltaPhase is mathematically isomorphic to the physics of continuous-spin magnetic materials and phase oscillator networks ([`docs/physical_foundations_and_spin_glass_dynamics.md`](docs/physical_foundations_and_spin_glass_dynamics.md) / [`docs/findings_spin_glass_and_kuramoto_relaxation.md`](docs/findings_spin_glass_and_kuramoto_relaxation.md)):
 - **2D XY Spin-Glass Hamiltonian:** The phasor affinity $\operatorname{Re}(K^\dagger Q) = \sum \cos(\theta_K - \theta_Q)$ is mathematically identical to the interaction energy of planar magnetic moments under exchange tensor $J$.
@@ -130,32 +119,13 @@ DeltaPhase is mathematically isomorphic to the physics of continuous-spin magnet
 
 ---
 
-### 10. Neural Phasor CPU (Phasor-CPU): Biologically-Inspired Helical Computing [VISIÓN]
+### 🔮 Visión y fronteras especulativas (separadas a propósito)
 
-DeltaPhase formalizes the architecture of a **differentiable, neuro-symbolic processor** inspired by the helical phase dynamics of double-helix DNA transcription ([`docs/neural_phasor_cpu_architecture.md`](docs/neural_phasor_cpu_architecture.md)):
-- **Helical Program Counter:** Rotates continuously on $S^1$ with phase-interference conditional branching (`JUMP`).
-- **Topological Call Stack ($w \in \mathbb{Z}$):** Tracks exact recursion depths using topological winding invariants, guaranteeing **zero bit-rot or stack overflow across 100,000+ tokens**.
-- **Resonance-Addressed Heap:** Holographic variable binding ($K_{\text{var}} \otimes V_{\text{val}}$) yielding instantaneous $O(1)$ conjugate readout ($\operatorname{Re}(M \overline{K})$) with zero variable crosstalk.
-- **LogicPhase Wave ALU:** Native physical wave logic operators (`BIND`, `UNBIND`, `NOT` via $e^{i\pi} = -1$, `AND` via coherent superposition, `RELAX` via Kuramoto attractors).
+Las ideas a largo plazo del proyecto — paradigmas de computación ondulatoria sobre $S^1$, el procesador **Neural Phasor CPU**, la síntesis de lenguaje por paquetes de onda (**SpecWave**) y la auditoría de seguridad en tiempo real — **no forman parte de las innovaciones validadas** y viven en un documento dedicado:
 
----
+**[`docs/speculative_visions_and_long_term_frontiers.md`](docs/speculative_visions_and_long_term_frontiers.md)**
 
-### 11. Holistic Spectral Wave Language Synthesis ($O(1)$ Single-Shot Text Generation) [VISIÓN/POC]
-
-DeltaPhase conceptualizes text generation as continuous frequency wave packet emission, eliminating the sequential $O(N)$ token-by-token bottleneck ([`docs/spectral_wave_language_synthesis_and_holistic_decoding.md`](docs/spectral_wave_language_synthesis_and_holistic_decoding.md)):
-- **Single-Shot Thought Waveform:** Emits a 2D spectral tensor $\Psi(\omega, t) \in \mathbb{C}^{F \times T}$ representing the full response in a single forward pass ($O(1)$).
-- **Parallel Spectral Language Vocoder:** Inverts the wave into all $N$ tokens simultaneously in $<10\text{ ms}$ ($250\times$ faster than autoregressive decoding) via 2D IDWT and transposed convolutions.
-- **Guaranteed Global Argument Coherence:** Low frequencies (LL band) lock in the thesis and conclusion globally, preventing mid-paragraph amnesia.
-- **Direct Mind-to-Mind Agent Transfer:** Transmits raw spectral thought waves ($\approx 512\text{ bytes}$) directly between agents without converting to surface text.
-
----
-
-### 12. Real-Time Safety Auditing & Mechanistic Alignment [VISIÓN]
-
-DeltaPhase provides native, zero-overhead safety monitoring and deception detection directly through its physical and spectral properties ([`docs/real_time_safety_auditing_and_mechanistic_alignment.md`](docs/real_time_safety_auditing_and_mechanistic_alignment.md)):
-- **Unconscious Thought Monitoring:** Directly decodes the **LL (Low-Low) frequency subband** to verbalize internal intent in $O(1)$ (<2 ms), exposing "alignment faking" and covert deception without auxiliary LLM translation loops.
-- **Hamiltonian Energy Tripwires ($E$):** Mathematical resonance metric drops to negative energy wells ($\Delta E \ll 0$) when latent activations align with hazardous concepts (cyber, CBRN), triggering immediate **destructive wave cancellation ($e^{i\pi} = -1.0$)**.
-- **Topological Invariant Safeguards ($w \in \mathbb{Z}$):** Constitutional safety guardrails anchored as integer winding numbers, provably immune to adversarial prompt injection and high-frequency noise.
+Ese documento lleva un contrato epistémico explícito: cero claims presentados como capacidades, estado real de cada frontera, y el **criterio de promoción experimental** que cada visión debe superar para migrar al README con evidencia. Dos ítems ya completaron ese recorrido (grokking ℤ_k y el núcleo Laplace), que es exactamente el proceso previsto: *hipótesis baratas de escribir, caras de sostener — hasta que se miden.*
 
 ---
 

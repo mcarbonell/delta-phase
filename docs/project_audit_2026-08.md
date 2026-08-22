@@ -266,6 +266,11 @@ Estos son los tres cimientos de credibilidad del proyecto y **se sostienen**.
 - **Veredicto de rendimiento honesto:** el Gram PyTorch vectorizado (`cos·cosᵀ + sin·sinᵀ`, 2 GEMM cuBLAS) es **3–10× más rápido que el kernel Triton en 6/6 configs** (p. ej. C=128/dk=128: 3.3 ms vs 33.5 ms). Decisión de ingeniería: **la ruta de producción es PyTorch; el kernel Triton se archiva como experimento validado numéricamente**, sin promesas de "fused en desarrollo".
 - Resultados archivados en `docs/triton_kernel_gpu_validation.json`. Suite local: 53 passed / 1 skipped (el skip ya no aplica en GPU: 4/4 verificados en T4).
 
+### Fase 9 — Separación Narrativa: Validado vs Visión (22‑08‑2026)
+- **README:** las secciones de visión (Strategic Vision, Phasor-CPU, SpecWave, Safety Auditing) fueron **retiradas de Key Innovations** — ahora contiene solo lo validado [CORE] y PoCs [POC], renumeradas 1–8, más un puntero corto con disclaimer hacia el documento de visión.
+- **Nuevo documento paraguas** [`docs/speculative_visions_and_long_term_frontiers.md`](speculative_visions_and_long_term_frontiers.md): consolida las cuatro fronteras especulativas con un **contrato epistémico explícito** (cero claims citables como capacidades), el estado real de cada una, y su **criterio de promoción experimental** — la condición medible para migrar al README con evidencia (el proceso ya promovió dos ítems: grokking ℤ_k y Laplace).
+- Principio aplicado: *"hipótesis baratas de escribir, caras de sostener — hasta que se miden."* La vitrina pública del proyecto contiene exclusivamente lo que ha sobrevivido a su propio intento de falsación.
+
 
 
 
