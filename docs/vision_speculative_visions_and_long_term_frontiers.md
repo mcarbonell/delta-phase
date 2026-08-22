@@ -109,6 +109,16 @@ Tres conclusiones, de menor a mayor:
 2. **Rodilla localizada:** top-1 ≥95% hasta N≈256 (99.8%); cae a ~90% en N=512 y a azar (~46%) hacia N=1024 — consistente con la separación típica entre valores aleatorios en dv=64. Traducción práctica: un almacén relacional S³ de ~8 KB retiene ~250 asociaciones ordenadas con fidelidad >99.8%.
 3. **Doble firma de fallo confirmada y cuantificada:** en modo CONFLICTO, hadamard/roletag presentan un suelo algebráico PLANO — 50.00% ± 0.00 constante desde N=16 hasta N=128, insensible al ruido creciente (fallo estructural, no estadístico) — mientras S³ mantiene ≥95% hasta N=256. Además se registró un matiz honesto: la escritura del PoC es acumulación hebbiana pura (pares conflictivos U(1) devuelven e₁+e₂ → elección aleatoria entre ambos, no reemplazo), y S³ muestra interferencia ligeramente elevada entre pares revertidos (comparten entidades) — visible solo a gran N.
 
+**Falsable #2 — El doble recubrimiento como canal direccionable (22‑08‑2026)** — `test_double_cover_memory.py`, datos: `double_cover_memory_results.json`. Caminatas de rotaciones π sobre ejes principales: extremos en Q₈={±I,±x̂,±ŷ,±ẑ} → 4 orientaciones físicas (SO(3) identifica Q~−Q) vs 8 estados espinoriales (SU(2)). Consultas discriminantes = dirección espinorial única + gemelo de signo visitado. Memoria simbólica por cuantización al estado más cercano:
+
+| Pasos de caminata | su2 (discriminantes) | so3 (mismas consultas) |
+| :---: | :---: | :---: |
+| 4–16 | **100.00 ± 0.0%** | 50.0% → 33.1% |
+
+Dos conclusiones:
+1. **El signo espinorial es un canal de información direccionable**: Q y −Q representan la misma orientación física, pero portan paridades de devanado distintas que SU(2) separa y SO(3) fusiona. La consulta discriminante es literalmente el truco del cinturón convertido en test de memoria.
+2. **HALLAZGO estructural (el más profundo de la frontera): las memorias de superposición lineal son ciegas al doble recubrimiento por construcción.** Toda la familia delta-rule —incluido el núcleo de DeltaPhase— direcciona linealmente: el crosstalk entre antípodas es |⟨Q,−Q⟩|=1 en cualquier esquema lineal/bilineal (real, complejo o cuaterniónico; verificado empíricamente antes de rediseñar). La información de devanado solo es explotable mediante una etapa NO lineal de cuantización/direccionamiento simbólico. Implicación arquitectónica: memoria topológica de camino en DeltaPhase exigiría un cabezal simbólico espinorial análogo al pointer-buffer semi-paramétrico existente — no puede emerger del estado lineal O(1) actual.
+
 **Advertencias registradas de antemano:** presupuesto 4 flotantes/canal (vs 2 del complejo) — el confound de capacidad ya mordió una vez; emulación 4× ops reales sin GEMM nativo cuaterniónico (el hardware sopla en contra — lección Triton 6/6); riesgo de optimización más difícil por no-conmutatividad.
 
 ---

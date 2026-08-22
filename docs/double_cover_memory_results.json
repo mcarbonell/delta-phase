@@ -1,0 +1,81 @@
+{
+  "date": "2026-08-22T21:25:07.169806+00:00",
+  "purpose": "Frontera E: double cover (SU(2) vs SO(3)) as addressable memory information",
+  "protocol": {
+    "steps": [
+      4,
+      6,
+      8,
+      12,
+      16
+    ],
+    "trials": 60
+  },
+  "results": {
+    "4": {
+      "su2": {
+        "acc_discriminating": 100.0,
+        "se": 0.0,
+        "acc_easy": 100.0
+      },
+      "so3": {
+        "acc_discriminating": 50.0,
+        "se": 0.0,
+        "acc_easy": 100.0
+      },
+      "n_discriminating_per_walk": 34
+    },
+    "6": {
+      "su2": {
+        "acc_discriminating": 100.0,
+        "se": 0.0,
+        "acc_easy": 100.0
+      },
+      "so3": {
+        "acc_discriminating": 46.81,
+        "se": 1.39,
+        "acc_easy": 100.0
+      },
+      "n_discriminating_per_walk": 47
+    },
+    "8": {
+      "su2": {
+        "acc_discriminating": 100.0,
+        "se": 0.0,
+        "acc_easy": 100.0
+      },
+      "so3": {
+        "acc_discriminating": 38.21,
+        "se": 2.1,
+        "acc_easy": 100.0
+      },
+      "n_discriminating_per_walk": 56
+    },
+    "12": {
+      "su2": {
+        "acc_discriminating": 100.0,
+        "se": 0.0,
+        "acc_easy": 100.0
+      },
+      "so3": {
+        "acc_discriminating": 33.09,
+        "se": 3.19,
+        "acc_easy": 100.0
+      },
+      "n_discriminating_per_walk": 48
+    },
+    "16": {
+      "su2": {
+        "acc_discriminating": 100.0,
+        "se": 0.0,
+        "acc_easy": NaN
+      },
+      "so3": {
+        "acc_discriminating": 33.13,
+        "se": 4.04,
+        "acc_easy": NaN
+      },
+      "n_discriminating_per_walk": 42
+    }
+  }
+}
