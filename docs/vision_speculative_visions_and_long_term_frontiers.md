@@ -80,9 +80,28 @@ Hipótesis central: el binding fasorial actual vive en el primer peldaño de la 
 
 **Nota técnica habilitante (verificada sobre papel):** la parte real del producto interno hermitiano cuaterniónico es simétrica — Re(Σ_c k_s[c]·q̄_m[c]) define un Gram real simétrico — por lo que la maquinaria chunkwise (solve triangular, forma WY) del núcleo actual **debería sobrevivir intacta** en S³. No está verificado numéricamente.
 
-**Estado real hoy:** formalización + PoC ejecutable (`test_quaternion_binding_poc.py`): bloque delta cuaterniónico secuencial vs brazo U(1), tareas MQAR estándar (control de sanidad) y MQAR ordenado (bigrams ordenados → valor, sensible a no-conmutatividad).
+**Estado real hoy:** PoC ejecutado y **resultado NEGATIVO / no interpretable para la hipótesis** (`test_quaternion_binding_poc.py`, T4/Kaggle, 3 semillas, 800 pasos; datos: `quaternion_binding_poc_results.json`):
+- Tarea estándar (control): U(1) 81.22 ± 0.06% vs S³ 76.98 ± 0.86% — S³ peor incluso donde la no-conmutatividad es irrelevante.
+- Tarea ordenada: U(1) **98.99 ± 0.18%** (early-stop ~450 pasos) vs S³ **33.18 ± 5.39%** (sin converger, varianza alta). Δ = −65.8 puntos, 12σ.
 
-**Criterio de promoción a POC-certificado:** brazo S³ ≥ brazo U(1) fuera de ±1 SE (3 semillas) en la tarea **ordenada** bajo presupuesto de flotantes de estado igualado (~8192), con paridad en la tarea estándar como control de sanidad. Prior explícito post-ablation-del-router: se espera neutralidad salvo que la no-conmutatividad muerda algo real; cualquier victoria debe repetirse bajo control iso-presupuesto antes de migrar al README.
+**Autopsia del diseño (por qué el resultado NO refuta la teoría de binding):** en la implementación v1, el producto cuaterniónico **nunca compone** los dos tokens de entidad en una clave — ambos brazos calculan claves proyectando embeddings crudos vía conv+proyecciones, de modo que la desambiguación de orden recae por completo en el work-around posicional aprendido *en los dos brazos por igual*. Las diferencias medidas (2 cabezas vs 4, ancho de lectura 64 vs 128, restricciones de normalización) son geometría incidental, no álgebra de binding. Lo único que el PoC mide de verdad es que ese bloque cuaterniónico concreto optimiza peor — coherente con las advertencias registradas (4× ops, sin GEMM nativo).
+
+**Aprendizajes válidos que sí archiva este resultado:** (1) el work-around posicional de la vía conmutativa es sorprendentemente fuerte — resolvió orden al 99% sin álgebra ordenada, lo que baja el prior de que no-conmutatividad aporte en tareas de orden "fáciles"; (2) bloques cuaterniónicos secuenciales con esta parametrización convergen mal y con alta varianza; (3) el veredicto automático del script marcaba "señal" por |σ|>1 sin mirar el signo — corregido.
+
+**Criterio de promoción REVISED (v2):** para testear de verdad el álgebra, la clave debe ser una **composición explícita de las dos entidades en cada álgebra**: brazo U(1) key = k(a)⊙k(b) (Hadamard ⇒ idéntica para (a,b) y (b,a): imposible distinguir por construcción sin pistas posicionales); brazo S³ key = k(a)⊗k(b) (no conmutativa ⇒ distinta). Con cabezas/ancho igualados y sin conv posicional. Solo si S³ supera a U(1) *fuera de ±1 SE* en esa configuración procede el siguiente nivel (integración parcial). Prior actualizado post-v1: escéptico.
+
+**RESULTADO v2 (22‑08‑2026, composición explícita de claves, ZERO-SHOT sin entrenamiento)** — `test_quaternion_binding_v2.py`, datos: `quaternion_binding_v2_results.json`:
+
+| N_facts (50% conflictos) | hadamard U(1) | role-tag U(1) | cuaterniónica S³ |
+| :---: | :---: | :---: | :---: |
+| 2 | 50.0% | 50.0% | **100.0 ± 0.0%** |
+| 8 | 74.7% | 74.7% | **100.0 ± 0.0%** |
+| 32 | 73.3% | 73.3% | **100.0 ± 0.0%** |
+
+Tres conclusiones, de menor a mayor:
+1. **El control de imposibilidad se confirma**: el brazo role-tag colapsa sobre hadamard hasta el decimal. En U(1) ρ conmuta con todo ⇒ K(a,b) = ρ·ka·kb = K(b,a) *identificables*: ningún marcador de rol dentro de un álgebra conmutativa puede romper la simetría. No era un fallo de implementación — es un teorema que el experimento demuestra empíricamente.
+2. **La composición cuaterniónica preserva orden perfectamente bajo interferencia**: 100% exacto hasta 32 hechos con claves compuestas casi ortogonales (dk=45), zero-shot, sin entrenamiento ni optimizador que pueda contaminar la conclusión.
+3. **Veredicto de Frontera E:** la no-conmutatividad es **necesaria y suficiente** para binding que preserva orden a nivel álgebra. El *mecanismo* queda promovido a validado; lo que permanece abierto (y escéptico, tras v1) es si existe una tarea end-to-end donde esta ventaja estructural traduzca en precisión de modelo completo, dado que los work-arounds posicionales aprendidos son sorprendentemente fuertes cuando se les permite operar.
 
 **Advertencias registradas de antemano:** presupuesto 4 flotantes/canal (vs 2 del complejo) — el confound de capacidad ya mordió una vez; emulación 4× ops reales sin GEMM nativo cuaterniónico (el hardware sopla en contra — lección Triton 6/6); riesgo de optimización más difícil por no-conmutatividad.
 

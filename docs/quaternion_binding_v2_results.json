@@ -1,0 +1,91 @@
+{
+  "date": "2026-08-22T20:11:16.826303+00:00",
+  "purpose": "Frontera E v2: key composition algebra — order-blind vs order-preserving vs role-tagged",
+  "protocol": {
+    "nfacts": [
+      2,
+      4,
+      8,
+      16,
+      32
+    ],
+    "trials": 40,
+    "state_floats": {
+      "hadamard_u1": 11520,
+      "roletag_u1": 11520,
+      "quat_s3": 11520
+    }
+  },
+  "results": {
+    "2": {
+      "hadamard_u1": {
+        "mean_acc": 50.0,
+        "se": 0.0
+      },
+      "quat_s3": {
+        "mean_acc": 100.0,
+        "se": 0.0
+      },
+      "roletag_u1": {
+        "mean_acc": 50.0,
+        "se": 1.77
+      }
+    },
+    "4": {
+      "hadamard_u1": {
+        "mean_acc": 75.0,
+        "se": 0.0
+      },
+      "quat_s3": {
+        "mean_acc": 100.0,
+        "se": 0.0
+      },
+      "roletag_u1": {
+        "mean_acc": 75.0,
+        "se": 0.0
+      }
+    },
+    "8": {
+      "hadamard_u1": {
+        "mean_acc": 74.69,
+        "se": 0.31
+      },
+      "quat_s3": {
+        "mean_acc": 100.0,
+        "se": 0.0
+      },
+      "roletag_u1": {
+        "mean_acc": 74.69,
+        "se": 0.31
+      }
+    },
+    "16": {
+      "hadamard_u1": {
+        "mean_acc": 74.53,
+        "se": 0.26
+      },
+      "quat_s3": {
+        "mean_acc": 100.0,
+        "se": 0.0
+      },
+      "roletag_u1": {
+        "mean_acc": 74.53,
+        "se": 0.26
+      }
+    },
+    "32": {
+      "hadamard_u1": {
+        "mean_acc": 73.28,
+        "se": 0.37
+      },
+      "quat_s3": {
+        "mean_acc": 100.0,
+        "se": 0.0
+      },
+      "roletag_u1": {
+        "mean_acc": 73.28,
+        "se": 0.37
+      }
+    }
+  }
+}

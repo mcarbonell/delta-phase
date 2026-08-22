@@ -425,10 +425,13 @@ def main():
         print(f"\n🔎 DELTA en tarea ordenada (S³ − U(1)): {d:+.2f} puntos", flush=True)
         if sig is None:
             print("   ⚪ Sigma no evaluable (SE=0 con semillas insuficientes)", flush=True)
-        elif sig > 1:
-            print(f"   🟢 Señal: {sig:.2f} sigma combinado — supera ±1 SE, merece repetición con más semillas/configs", flush=True)
+        elif d > 0 and sig > 1:
+            print(f"   🟢 Señal POSITIVA para S³: {sig:.2f} sigma — supera ±1 SE, merece repetición", flush=True)
+        elif sig is not None and abs(sig) > 1:
+            print(f"   🔴 Resultado NEGATIVO para S³ ({sig:.2f} sigma): el brazo cuaterniónico rinde PEOR — "
+                  f"registrar como evidencia contra la hipótesis tal como fue implementada", flush=True)
         else:
-            print(f"   🔴 Consistente con neutralidad ({sig:.2f} sigma; prior confirmado hasta ahora)", flush=True)
+            print(f"   ⚪ Consistente con neutralidad ({sig} sigma)", flush=True)
     print(f"\n💾 Resultados: {RESULTS_PATH}", flush=True)
 
 

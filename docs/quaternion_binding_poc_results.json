@@ -1,61 +1,137 @@
 {
-  "date": "2026-08-22T17:24:55.690928+00:00",
+  "date": "2026-08-22T17:34:46.599356+00:00",
   "purpose": "Frontera E: quaternionic S3 binding vs U(1) phasor binding",
   "protocol": {
-    "device": "cpu",
-    "steps": 30,
+    "device": "cuda",
+    "steps": 800,
     "batch": 32,
     "lr": 0.003,
-    "early_stop": 200.0,
+    "early_stop": 99.0,
     "seeds": [
-      42
+      42,
+      137,
+      2024
     ],
     "arms": [
       "complex_u1",
       "quat_s3"
     ],
     "tasks": [
+      "standard",
       "ordered"
     ],
-    "quick": true
+    "quick": false
   },
   "results": {
-    "ordered": {
+    "standard": {
       "complex_u1": {
         "seeds": {
           "42": {
-            "final_acc": 17.118055555555557,
-            "step_stop": 30,
-            "wallclock": 21.402525901794434
+            "final_acc": 81.09375,
+            "step_stop": 800,
+            "wallclock": 329.3706076145172
+          },
+          "137": {
+            "final_acc": 81.328125,
+            "step_stop": 800,
+            "wallclock": 326.9799735546112
+          },
+          "2024": {
+            "final_acc": 81.25,
+            "step_stop": 800,
+            "wallclock": 329.5116159915924
           }
         },
         "summary": {
-          "mean_acc": 17.118055555555557,
-          "se_acc": 0.0,
-          "mean_wallclock": 21.402525901794434
+          "mean_acc": 81.22395833333333,
+          "se_acc": 0.05625642967367935,
+          "mean_wallclock": 328.6207323869069
         }
       },
       "quat_s3": {
         "seeds": {
           "42": {
-            "final_acc": 2.4652777777777777,
-            "step_stop": 30,
-            "wallclock": 114.96947264671326
+            "final_acc": 77.86458333333333,
+            "step_stop": 800,
+            "wallclock": 811.3155798912048
+          },
+          "137": {
+            "final_acc": 74.86979166666667,
+            "step_stop": 800,
+            "wallclock": 809.697470664978
+          },
+          "2024": {
+            "final_acc": 78.203125,
+            "step_stop": 800,
+            "wallclock": 816.3091170787811
           }
         },
         "summary": {
-          "mean_acc": 2.4652777777777777,
-          "se_acc": 0.0,
-          "mean_wallclock": 114.96947264671326
+          "mean_acc": 76.97916666666667,
+          "se_acc": 0.8648377860727021,
+          "mean_wallclock": 812.440722544988
+        }
+      }
+    },
+    "ordered": {
+      "complex_u1": {
+        "seeds": {
+          "42": {
+            "final_acc": 99.375,
+            "step_stop": 500,
+            "wallclock": 221.9142255783081
+          },
+          "137": {
+            "final_acc": 98.99305555555556,
+            "step_stop": 400,
+            "wallclock": 176.5190465450287
+          },
+          "2024": {
+            "final_acc": 98.61111111111111,
+            "step_stop": 450,
+            "wallclock": 199.35625863075256
+          }
+        },
+        "summary": {
+          "mean_acc": 98.99305555555554,
+          "se_acc": 0.18005033780212942,
+          "mean_wallclock": 199.26317691802979
+        }
+      },
+      "quat_s3": {
+        "seeds": {
+          "42": {
+            "final_acc": 21.805555555555557,
+            "step_stop": 800,
+            "wallclock": 838.2982277870178
+          },
+          "137": {
+            "final_acc": 33.05555555555556,
+            "step_stop": 800,
+            "wallclock": 833.7236752510071
+          },
+          "2024": {
+            "final_acc": 44.6875,
+            "step_stop": 800,
+            "wallclock": 832.8203854560852
+          }
+        },
+        "summary": {
+          "mean_acc": 33.182870370370374,
+          "se_acc": 5.393576471367769,
+          "mean_wallclock": 834.9474294980367
         }
       }
     }
   },
   "verdict": {
+    "standard": {
+      "delta_s3_minus_u1": -4.245,
+      "sigma": 4.9
+    },
     "ordered": {
-      "delta_s3_minus_u1": -14.653,
-      "sigma": null,
-      "note": "SE=0 (semillas insuficientes) — sigma no evaluable"
+      "delta_s3_minus_u1": -65.81,
+      "sigma": 12.19
     }
   }
 }
