@@ -1,0 +1,61 @@
+{
+  "date": "2026-08-22T17:24:55.690928+00:00",
+  "purpose": "Frontera E: quaternionic S3 binding vs U(1) phasor binding",
+  "protocol": {
+    "device": "cpu",
+    "steps": 30,
+    "batch": 32,
+    "lr": 0.003,
+    "early_stop": 200.0,
+    "seeds": [
+      42
+    ],
+    "arms": [
+      "complex_u1",
+      "quat_s3"
+    ],
+    "tasks": [
+      "ordered"
+    ],
+    "quick": true
+  },
+  "results": {
+    "ordered": {
+      "complex_u1": {
+        "seeds": {
+          "42": {
+            "final_acc": 17.118055555555557,
+            "step_stop": 30,
+            "wallclock": 21.402525901794434
+          }
+        },
+        "summary": {
+          "mean_acc": 17.118055555555557,
+          "se_acc": 0.0,
+          "mean_wallclock": 21.402525901794434
+        }
+      },
+      "quat_s3": {
+        "seeds": {
+          "42": {
+            "final_acc": 2.4652777777777777,
+            "step_stop": 30,
+            "wallclock": 114.96947264671326
+          }
+        },
+        "summary": {
+          "mean_acc": 2.4652777777777777,
+          "se_acc": 0.0,
+          "mean_wallclock": 114.96947264671326
+        }
+      }
+    }
+  },
+  "verdict": {
+    "ordered": {
+      "delta_s3_minus_u1": -14.653,
+      "sigma": null,
+      "note": "SE=0 (semillas insuficientes) — sigma no evaluable"
+    }
+  }
+}

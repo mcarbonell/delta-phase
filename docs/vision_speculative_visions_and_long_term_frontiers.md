@@ -68,6 +68,26 @@ Hipótesis central: las propiedades físicas del estado (subbanda LL decodificab
 
 ---
 
+## 🧮 Frontera E — Álgebras de Spin: Binding Cuaterniónico (S³ ⊃ U(1))
+
+**Doc detallado:** este apartado (hipótesis formulada 22‑08‑2026 tras la auditoría completa del núcleo U(1); PoC: `tests/test_quaternion_binding_poc.py`).
+
+Hipótesis central: el binding fasorial actual vive en el primer peldaño de la escalera clásica de grupos — U(1) (fasores, conmutativo) → SO(3)/S² (spins de Heisenberg) → SU(2)/S³ (**spinores/cuaterniones**, no conmutativo, doble recubrimiento). Subir al tercer peldaño cambia el álgebra del binding de conmutativa a **no conmutativa**, con tres consecuencias teóricas concretas:
+
+1. **Orden estructural gratis:** en VSA, un producto conmutativo solo codifica multiconjuntos (k₁k₂ = k₂k₁); uno no conmutativo codifica **secuencias ordenadas** (trazas de camino g₁g₂g₃ ≠ g₃g₂g₁). Hipótesis operativa: desambiguación de orden sin depender de información posicional frágil bajo interferencia.
+2. **Espectro de isometría enriquecido:** demostrado en este repo que β real da contracciones y β complejo isometrías exactas con autovalores en U(1) (base del grokking ℤ_k certificado). Unidades cuaterniónicas moverían los autovalores a Sp(1)=SU(2): misma estabilidad marginal, 3 grados de libertad rotacional extra por canal, composición no conmutativa.
+3. **Doble recubrimiento como aritmética:** período efectivo 4π ⇒ paridad/estructuras cíclicas dobles emergentes (análogo a cómo ℤ₉ emergió de U(1)).
+
+**Nota técnica habilitante (verificada sobre papel):** la parte real del producto interno hermitiano cuaterniónico es simétrica — Re(Σ_c k_s[c]·q̄_m[c]) define un Gram real simétrico — por lo que la maquinaria chunkwise (solve triangular, forma WY) del núcleo actual **debería sobrevivir intacta** en S³. No está verificado numéricamente.
+
+**Estado real hoy:** formalización + PoC ejecutable (`test_quaternion_binding_poc.py`): bloque delta cuaterniónico secuencial vs brazo U(1), tareas MQAR estándar (control de sanidad) y MQAR ordenado (bigrams ordenados → valor, sensible a no-conmutatividad).
+
+**Criterio de promoción a POC-certificado:** brazo S³ ≥ brazo U(1) fuera de ±1 SE (3 semillas) en la tarea **ordenada** bajo presupuesto de flotantes de estado igualado (~8192), con paridad en la tarea estándar como control de sanidad. Prior explícito post-ablation-del-router: se espera neutralidad salvo que la no-conmutatividad muerda algo real; cualquier victoria debe repetirse bajo control iso-presupuesto antes de migrar al README.
+
+**Advertencias registradas de antemano:** presupuesto 4 flotantes/canal (vs 2 del complejo) — el confound de capacidad ya mordió una vez; emulación 4× ops reales sin GEMM nativo cuaterniónico (el hardware sopla en contra — lección Triton 6/6); riesgo de optimización más difícil por no-conmutatividad.
+
+---
+
 ## 🔬 Nota final sobre método
 
 Las cuatro fronteras comparten el mismo patrón que ya funcionó dos veces en este repo: el claim original de MQAR sobrevivió a su control de capacidad solo después de recortarse a sí mismo (de "+22.82% de capacidad" a "aceleración de grokking 1.38×–1.74×"), y el kernel Triton pasó de promesa a archivado cuando el benchmark dijo que PyTorch ganaba 6/6. Las visiones de este documento merecen exactamente el mismo trato: **hipótesis baratas de escribir, caras de sostener — hasta que se miden.**
