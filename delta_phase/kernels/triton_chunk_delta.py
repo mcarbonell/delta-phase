@@ -35,63 +35,91 @@ if TRITON_AVAILABLE:
         beta_ptr,
         gram_out_ptr,
         C, D_K,
-        stride_k_m, stride_k_d,
-        stride_beta,
-        stride_g_m, stride_g_n,
+        stride_kb, stride_k_m, stride_k_d,
+        stride_beta_b, stride_beta_m,
+        stride_gb, stride_g_m, stride_g_n,
         inv_dk,
-        BLOCK_C: tl.constexpr,
+        BLOCK_M: tl.constexpr,
+        BLOCK_N: tl.constexpr,
         BLOCK_D: tl.constexpr,
     ):
         """
-        Tiled fused intra-chunk phasor Gram matrix (one program per flattened matrix).
+        Tiled fused intra-chunk phasor Gram matrix (flash-attention-style 2D tiling).
 
-        Computes, for a single (batch, head, chunk) matrix of key angles:
+        Grid: (N_matrices, cdiv(C, BLOCK_M), cdiv(C, BLOCK_N)). Each program computes one
+        (BLOCK_M, BLOCK_N) output tile by streaming the channel axis in BLOCK_D chunks:
+
             Gram[m, n] = (1/d_k) * sum_d cos(theta_m,d - theta_n,d) * beta_m   (strictly lower, m > n)
             Gram[m, n] = 0 elsewhere (diagonal, upper triangle, and padding are written as 0).
 
-        NOTE the beta convention matches the PyTorch reference in delta_phase.layers:
-        ROW scaling by beta_m (not column scaling). The full matrix is materialized so
-        no output element is left uninitialized.
-
-        Layout contract: theta_k and beta are pre-flattened to (N_matrices, C, D_K) and
-        (N_matrices, C); the grid is (N_matrices,).
+        Correctness notes:
+          - beta convention matches the PyTorch reference in delta_phase.layers: ROW
+            scaling by beta_m.
+          - Masked lanes (padding on m, n, or d) must contribute EXACTLY 0 to the
+            cosine sum: a masked lane loads 0-0=0 and cos(0)=1, which would poison
+            every entry whenever D_K is not a multiple of BLOCK_D. The explicit
+            tl.where on the mask is therefore load-bearing — do not remove it.
         """
-        pid = tl.program_id(0)
+        pid_b = tl.program_id(0)
+        pid_m = tl.program_id(1)
+        pid_n = tl.program_id(2)
 
-        m_idx = tl.arange(0, BLOCK_C)
-        n_idx = tl.arange(0, BLOCK_C)
+        m_idx = pid_m * BLOCK_M + tl.arange(0, BLOCK_M)
+        n_idx = pid_n * BLOCK_N + tl.arange(0, BLOCK_N)
         d_idx = tl.arange(0, BLOCK_D)
         mask_m = m_idx < C
+        mask_n = n_idx < C
 
-        base_k = theta_k_ptr + pid * C * stride_k_m
+        base_k = theta_k_ptr + pid_b * stride_kb
 
-        # Gram[m, n] = sum_d cos(th_m - th_n) / d_k, accumulated over BLOCK_D d-tiles
-        # so D_K is unbounded by register pressure.
-        m_idx_t = m_idx[:, None]
-        acc = tl.zeros((BLOCK_C, BLOCK_C), dtype=tl.float32)
+        acc = tl.zeros((BLOCK_M, BLOCK_N), dtype=tl.float32)
         for d0 in range(0, D_K, BLOCK_D):
             d_off = d0 + d_idx
-            mask_d_tile = d_off < D_K
-            tm = tl.load(base_k + m_idx_t * stride_k_m + d_off[None, :] * stride_k_d,
-                         mask=mask_m[:, None] & mask_d_tile[None, :], other=0.0)
+            mask_d = d_off < D_K
+            tm = tl.load(base_k + m_idx[:, None] * stride_k_m + d_off[None, :] * stride_k_d,
+                         mask=mask_m[:, None] & mask_d[None, :], other=0.0)
             tn = tl.load(base_k + n_idx[:, None] * stride_k_m + d_off[None, :] * stride_k_d,
-                         mask=mask_m[:, None] & mask_d_tile[None, :], other=0.0)
+                         mask=mask_n[:, None] & mask_d[None, :], other=0.0)
             diff = tm[:, None, :] - tn[None, :, :]
-            acc += tl.sum(tl.cos(diff), axis=2)
+            cosv = tl.cos(diff)
+            cosv = tl.where(mask_d[None, None, :], cosv, 0.0)   # masked lanes -> 0 (see docstring)
+            acc += tl.sum(cosv, axis=2)
         gram = acc * inv_dk
 
-        # ROW scaling by beta_m (PyTorch-reference convention).
-        beta_m = tl.load(beta_ptr + pid * C * stride_beta + m_idx * stride_beta,
+        beta_m = tl.load(beta_ptr + pid_b * stride_beta_b + m_idx * stride_beta_m,
                          mask=mask_m, other=0.0)
         val = gram * beta_m[:, None]
 
-        # Keep strictly-lower entries only; write zeros everywhere else (no uninitialized memory).
-        keep = (m_idx[:, None] > n_idx[None, :]) & mask_m[:, None] & mask_m[None, :]
+        keep = (m_idx[:, None] > n_idx[None, :]) & mask_m[:, None] & mask_n[None, :]
         val = tl.where(keep, val, 0.0)
 
-        out_ptrs = (gram_out_ptr + pid * C * stride_g_m
+        out_ptrs = (gram_out_ptr + pid_b * stride_gb
                     + m_idx[:, None] * stride_g_m + n_idx[None, :] * stride_g_n)
-        tl.store(out_ptrs, val, mask=mask_m[:, None] & mask_m[None, :])
+        tl.store(out_ptrs, val, mask=mask_m[:, None] & mask_n[None, :])
+
+    def gram_matrix_triton(theta_k: torch.Tensor, beta: torch.Tensor,
+                           block_m: int = 32, block_n: int = 32, block_d: int = 32) -> torch.Tensor:
+        """
+        High-level launcher for the tiled Gram kernel.
+
+        theta_k: (N, C, D_K) float32 CUDA angles; beta: (N, C). Returns (N, C, C) with the
+        strictly-lower scaled Gram and zeros elsewhere (identical to gram_matrix_reference).
+        """
+        if not theta_k.is_cuda:
+            raise RuntimeError("gram_matrix_triton requires CUDA tensors")
+        N, C, D_K = theta_k.shape
+        out = torch.empty(N, C, C, device=theta_k.device, dtype=theta_k.dtype)
+        grid = (N, triton.cdiv(C, block_m), triton.cdiv(C, block_n))
+        _triton_fused_phase_gram_kernel[grid](
+            theta_k, beta, out,
+            C, D_K,
+            theta_k.stride(0), theta_k.stride(1), theta_k.stride(2),
+            beta.stride(0), beta.stride(1),
+            out.stride(0), out.stride(1), out.stride(2),
+            1.0 / float(D_K),
+            BLOCK_M=block_m, BLOCK_N=block_n, BLOCK_D=block_d,
+        )
+        return out
 
 
     @triton.jit

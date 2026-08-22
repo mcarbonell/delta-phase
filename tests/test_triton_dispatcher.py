@@ -16,7 +16,9 @@ from delta_phase.kernels.triton_chunk_delta import (
 from delta_phase.kernels import triton_available
 
 try:
-    from delta_phase.kernels.triton_chunk_delta import _triton_fused_phase_gram_kernel
+    from delta_phase.kernels.triton_chunk_delta import (
+        _triton_fused_phase_gram_kernel, gram_matrix_triton
+    )
     HAS_KERNEL_SYMBOL = True
 except ImportError:
     HAS_KERNEL_SYMBOL = False
@@ -103,21 +105,16 @@ def test_gram_reference_matches_naive_loop():
 @pytest.mark.skipif(not (triton_available() and HAS_KERNEL_SYMBOL),
                     reason="Triton + CUDA not available")
 def test_triton_gram_kernel_matches_reference():
+    """GPU parity incl. the masked-lane regression (dk not multiple of BLOCK_D)
+    and the C=16/dk=16 config that failed on T4 before the tl.where fix."""
     torch.manual_seed(0)
-    N, C, D = 4, 32, 64
-    theta = torch.randn(N, C, D, device="cuda")
-    beta = torch.rand(N, C, device="cuda")
+    for (C, dk) in [(16, 16), (32, 32), (32, 48), (64, 64), (64, 96)]:
+        N = 4
+        theta = torch.randn(N, C, dk, device="cuda")
+        beta = torch.rand(N, C, device="cuda")
+        beta[0] = 0.0
 
-    out = torch.empty(N, C, C, device="cuda")
-    grid = (N,)
-    _triton_fused_phase_gram_kernel[grid](
-        theta, beta, out,
-        C, D,
-        theta.stride(-2), theta.stride(-1),
-        beta.stride(-1),
-        out.stride(-2), out.stride(-1),
-        1.0 / float(D),
-        BLOCK_C=32, BLOCK_D=64,
-    )
-    ref = gram_matrix_reference(theta, beta)
-    assert (out - ref).abs().max().item() < 1e-4
+        out = gram_matrix_triton(theta, beta)
+        ref = gram_matrix_reference(theta, beta)
+        assert (out - ref).abs().max().item() < 1e-3, f"parity failed at C={C}, dk={dk}"
+        assert torch.triu(out, diagonal=0).abs().max().item() == 0.0

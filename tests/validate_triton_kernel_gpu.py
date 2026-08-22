@@ -59,10 +59,6 @@ def header():
             "cc": ".".join(map(str, torch.cuda.get_device_capability(0)))}
 
 
-def next_pow2(n):
-    return 1 << max(1, (n - 1).bit_length())
-
-
 # ---------------------------------------------------------------------
 # V0 — pytest module (executes the previously-skipped CUDA test)
 # ---------------------------------------------------------------------
@@ -82,11 +78,13 @@ def v0_pytest_module(payload):
 # ---------------------------------------------------------------------
 def v1_parity(payload):
     from delta_phase.kernels.triton_chunk_delta import (
-        _triton_fused_phase_gram_kernel, gram_matrix_reference
+        gram_matrix_triton, gram_matrix_reference
     )
     print("▶ V1: paridad numérica kernel Triton vs referencia PyTorch", flush=True)
     torch.manual_seed(0)
-    configs = [(16, 16), (32, 32), (48, 32), (64, 64), (64, 96), (128, 64), (64, 192)]
+    # Incluye la config C=16/dk=16 que falló en T4 (bug de lanes enmascaradas),
+    # dk no múltiplo del tile, y tamaños grandes (128) que colgaban el compilador antes del re-tiling 2D.
+    configs = [(16, 16), (32, 32), (48, 32), (64, 64), (64, 96), (100, 80), (128, 64), (64, 128), (128, 128)]
     results = []
     worst = 0.0
     for C, dk in configs:
@@ -94,37 +92,29 @@ def v1_parity(payload):
         theta = torch.randn(N, C, dk, device=DEVICE)
         beta = torch.rand(N, C, device=DEVICE)
         beta[0] = 0.0  # fila beta≈0 debe anular su salida
-        block_c, block_d = min(next_pow2(C), 128), 32
 
         ref = gram_matrix_reference(theta, beta)
         try:
-            out = torch.empty(N, C, C, device=DEVICE)
-            _triton_fused_phase_gram_kernel[(N,)](
-                theta, beta, out, C, dk,
-                theta.stride(-2), theta.stride(-1),
-                beta.stride(-1),
-                out.stride(-2), out.stride(-1),
-                1.0 / float(dk),
-                BLOCK_C=block_c, BLOCK_D=block_d,
-            )
+            out = gram_matrix_triton(theta, beta)
             diff = (out - ref).abs().max().item()
             strict_upper = torch.triu(out, diagonal=0).abs().max().item()
             ok = diff < 1e-3 and strict_upper == 0.0
             worst = max(worst, diff)
-            results.append({"C": C, "dk": dk, "block_c": block_c, "block_d": block_d,
-                            "max_diff": diff, "strict_upper_max": strict_upper, "pass": ok})
-            print(f"   C={C:>3} dk={dk:>3} | BLOCK_C={block_c:>3} BLOCK_D={block_d} | "
-                  f"max_diff={diff:.3e} | triu==0: {strict_upper == 0.0} | {'✅' if ok else '❌'}", flush=True)
+            results.append({"C": C, "dk": dk, "max_diff": diff,
+                            "strict_upper_max": strict_upper, "pass": ok})
+            print(f"   C={C:>3} dk={dk:>3} | max_diff={diff:.3e} | "
+                  f"triu==0: {strict_upper == 0.0} | {'✅' if ok else '❌'}", flush=True)
         except Exception as ex:
-            results.append({"C": C, "dk": dk, "block_c": block_c, "block_d": block_d,
-                            "error": f"{type(ex).__name__}: {ex}", "pass": False})
+            results.append({"C": C, "dk": dk, "error": f"{type(ex).__name__}: {ex}", "pass": False})
             print(f"   C={C:>3} dk={dk:>3} | ❌ no compiló/ejecutó en este hw: {type(ex).__name__}", flush=True)
 
     payload["parity"] = {"worst_diff": worst, "configs": results}
     assert results and any(r["pass"] for r in results), "Ninguna config pasó paridad"
     executed = [r for r in results if "max_diff" in r]
-    print(f"   ✅ Paridad OK en {sum(r['pass'] for r in executed)}/{len(executed)} configs ejecutadas "
+    n_ok = sum(r["pass"] for r in executed)
+    print(f"   {'✅' if n_ok == len(executed) else '⚠️'} Paridad {n_ok}/{len(executed)} configs ejecutadas "
           f"(peor diff {worst:.3e})\n", flush=True)
+    assert n_ok == len(executed), "Parity failed on executed configs"
 
 
 # ---------------------------------------------------------------------
@@ -192,7 +182,7 @@ def v3_block(payload):
 # ---------------------------------------------------------------------
 def v4_benchmark(payload):
     from delta_phase.kernels.triton_chunk_delta import (
-        _triton_fused_phase_gram_kernel, gram_matrix_reference
+        gram_matrix_triton, gram_matrix_reference
     )
     print("▶ V4: benchmark Triton tile vs PyTorch vectorizado (N=512 matrices, mediana de 30 reps)", flush=True)
     torch.manual_seed(0)
@@ -201,12 +191,6 @@ def v4_benchmark(payload):
     for C, dk in [(32, 32), (64, 32), (64, 64), (128, 64), (64, 128), (128, 128)]:
         theta = torch.randn(N, C, dk, device=DEVICE)
         beta = torch.rand(N, C, device=DEVICE)
-        out = torch.empty(N, C, C, device=DEVICE)
-        block_c, block_d = min(next_pow2(C), 128), 32
-        args = (theta, beta, out, C, dk,
-                theta.stride(-2), theta.stride(-1), beta.stride(-1),
-                out.stride(-2), out.stride(-1), 1.0 / float(dk))
-        kwargs = {"BLOCK_C": block_c, "BLOCK_D": block_d}
 
         def run(fn):
             for _ in range(5):
@@ -222,7 +206,7 @@ def v4_benchmark(payload):
             return times[len(times) // 2]
 
         try:
-            t_tri = run(lambda: _triton_fused_phase_gram_kernel[(N,)](*args, **kwargs))
+            t_tri = run(lambda: gram_matrix_triton(theta, beta))
         except Exception as ex:
             t_tri = float("nan")
             print(f"   C={C:>3} dk={dk:>3}: kernel lanzó {type(ex).__name__} (no soportado en este hw)", flush=True)
