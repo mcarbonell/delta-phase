@@ -1,0 +1,463 @@
+{
+  "date": "2026-08-22T20:45:07.797979+00:00",
+  "purpose": "Frontera E: capacity knee + sqrt(N) noise-law verification",
+  "protocol": {
+    "nfacts": [
+      16,
+      32,
+      64,
+      128,
+      256,
+      512,
+      1024
+    ],
+    "modes": [
+      "LIMPIO",
+      "CONFLICTO"
+    ],
+    "state_floats": {
+      "hadamard_u1": 11520,
+      "roletag_u1": 11520,
+      "quat_s3": 11520
+    },
+    "d_eff_target": 180
+  },
+  "results": {
+    "LIMPIO": {
+      "16": {
+        "hadamard_u1": {
+          "mean_acc": 100.0,
+          "se_acc": 0.0,
+          "mean_noise": 0.28211939707398415,
+          "theory_noise": 0.28867513459481287,
+          "mean_cos_true": 0.9619646668434143,
+          "theory_cos": 0.9607689228305228,
+          "trials": 30
+        },
+        "quat_s3": {
+          "mean_acc": 100.0,
+          "se_acc": 0.0,
+          "mean_noise": 0.27749208761379124,
+          "theory_noise": 0.28867513459481287,
+          "mean_cos_true": 0.9628044366836548,
+          "theory_cos": 0.9607689228305228,
+          "trials": 30
+        },
+        "roletag_u1": {
+          "mean_acc": 100.0,
+          "se_acc": 0.0,
+          "mean_noise": 0.2821193969498078,
+          "theory_noise": 0.28867513459481287,
+          "mean_cos_true": 0.9619646668434143,
+          "theory_cos": 0.9607689228305228,
+          "trials": 30
+        }
+      },
+      "32": {
+        "hadamard_u1": {
+          "mean_acc": 100.0,
+          "se_acc": 0.0,
+          "mean_noise": 0.41149182252896327,
+          "theory_noise": 0.4149966532662911,
+          "mean_cos_true": 0.924480676651001,
+          "theory_cos": 0.9236236077106189,
+          "trials": 30
+        },
+        "quat_s3": {
+          "mean_acc": 100.0,
+          "se_acc": 0.0,
+          "mean_noise": 0.40959526747465136,
+          "theory_noise": 0.4149966532662911,
+          "mean_cos_true": 0.9253551363945007,
+          "theory_cos": 0.9236236077106189,
+          "trials": 30
+        },
+        "roletag_u1": {
+          "mean_acc": 100.0,
+          "se_acc": 0.0,
+          "mean_noise": 0.4114918222806106,
+          "theory_noise": 0.4149966532662911,
+          "mean_cos_true": 0.924480676651001,
+          "theory_cos": 0.9236236077106189,
+          "trials": 30
+        }
+      },
+      "64": {
+        "hadamard_u1": {
+          "mean_acc": 100.0,
+          "se_acc": 0.0,
+          "mean_noise": 0.5883346637090047,
+          "theory_noise": 0.5916079783099616,
+          "mean_cos_true": 0.8617414832115173,
+          "theory_cos": 0.8606629658238704,
+          "trials": 30
+        },
+        "quat_s3": {
+          "mean_acc": 100.0,
+          "se_acc": 0.0,
+          "mean_noise": 0.5889635008759797,
+          "theory_noise": 0.5916079783099616,
+          "mean_cos_true": 0.8619955778121948,
+          "theory_cos": 0.8606629658238704,
+          "trials": 30
+        },
+        "roletag_u1": {
+          "mean_acc": 100.0,
+          "se_acc": 0.0,
+          "mean_noise": 0.5883346621723224,
+          "theory_noise": 0.5916079783099616,
+          "mean_cos_true": 0.8617414832115173,
+          "theory_cos": 0.8606629658238704,
+          "trials": 30
+        }
+      },
+      "128": {
+        "hadamard_u1": {
+          "mean_acc": 100.0,
+          "se_acc": 0.0,
+          "mean_noise": 0.8371988478116691,
+          "theory_noise": 0.8399735445569435,
+          "mean_cos_true": 0.7666810154914856,
+          "theory_cos": 0.7657148413352337,
+          "trials": 30
+        },
+        "quat_s3": {
+          "mean_acc": 100.0,
+          "se_acc": 0.0,
+          "mean_noise": 0.8347803549841046,
+          "theory_noise": 0.8399735445569435,
+          "mean_cos_true": 0.7673518061637878,
+          "theory_cos": 0.7657148413352337,
+          "trials": 30
+        },
+        "roletag_u1": {
+          "mean_acc": 100.0,
+          "se_acc": 0.0,
+          "mean_noise": 0.8371988467561702,
+          "theory_noise": 0.8399735445569435,
+          "mean_cos_true": 0.7666810154914856,
+          "theory_cos": 0.7657148413352337,
+          "trials": 30
+        }
+      },
+      "256": {
+        "hadamard_u1": {
+          "mean_acc": 99.81770833333333,
+          "se_acc": 0.05744927815199409,
+          "mean_noise": 1.1849027557143321,
+          "theory_noise": 1.1902380714238083,
+          "mean_cos_true": 0.6444583535194397,
+          "theory_cos": 0.6432675209026768,
+          "trials": 30
+        },
+        "quat_s3": {
+          "mean_acc": 99.77864583333333,
+          "se_acc": 0.05426215208344442,
+          "mean_noise": 1.1843348381730416,
+          "theory_noise": 1.1902380714238083,
+          "mean_cos_true": 0.6434537768363953,
+          "theory_cos": 0.6432675209026768,
+          "trials": 30
+        },
+        "roletag_u1": {
+          "mean_acc": 99.81770833333333,
+          "se_acc": 0.05744927815199409,
+          "mean_noise": 1.1849027530755847,
+          "theory_noise": 1.1902380714238083,
+          "mean_cos_true": 0.6444583535194397,
+          "theory_cos": 0.6432675209026768,
+          "trials": 30
+        }
+      },
+      "512": {
+        "hadamard_u1": {
+          "mean_acc": 89.65494791666667,
+          "se_acc": 0.23428154483225358,
+          "mean_noise": 1.6780347851493085,
+          "theory_noise": 1.6849002608133483,
+          "mean_cos_true": 0.5106459856033325,
+          "theory_cos": 0.5103842087300351,
+          "trials": 30
+        },
+        "quat_s3": {
+          "mean_acc": 89.58333333333333,
+          "se_acc": 0.21282856458238653,
+          "mean_noise": 1.6790101217416427,
+          "theory_noise": 1.6849002608133483,
+          "mean_cos_true": 0.5102266669273376,
+          "theory_cos": 0.5103842087300351,
+          "trials": 30
+        },
+        "roletag_u1": {
+          "mean_acc": 89.65494791666667,
+          "se_acc": 0.23428154483225358,
+          "mean_noise": 1.678034780236582,
+          "theory_noise": 1.6849002608133483,
+          "mean_cos_true": 0.5106459856033325,
+          "theory_cos": 0.5103842087300351,
+          "trials": 30
+        }
+      },
+      "1024": {
+        "hadamard_u1": {
+          "mean_acc": 45.54177989130435,
+          "se_acc": 0.2589393117481199,
+          "mean_noise": 2.3701408094038134,
+          "theory_noise": 2.38397427279183,
+          "mean_cos_true": 0.3858201503753662,
+          "theory_cos": 0.3868151175459599,
+          "trials": 23
+        },
+        "quat_s3": {
+          "mean_acc": 45.95363451086956,
+          "se_acc": 0.28335465738433485,
+          "mean_noise": 2.374553076371186,
+          "theory_noise": 2.38397427279183,
+          "mean_cos_true": 0.3863672912120819,
+          "theory_cos": 0.3868151175459599,
+          "trials": 23
+        },
+        "roletag_u1": {
+          "mean_acc": 45.54177989130435,
+          "se_acc": 0.2589393117481199,
+          "mean_noise": 2.3701408059822153,
+          "theory_noise": 2.38397427279183,
+          "mean_cos_true": 0.38582009077072144,
+          "theory_cos": 0.3868151175459599,
+          "trials": 23
+        }
+      }
+    },
+    "CONFLICTO": {
+      "16": {
+        "hadamard_u1": {
+          "mean_acc": 50.0,
+          "se_acc": 0.0,
+          "mean_noise": 1.0401879082123437,
+          "theory_noise": 0.28867513459481287,
+          "mean_cos_true": 0.6894996762275696,
+          "theory_cos": 0.9607689228305228,
+          "trials": 30
+        },
+        "quat_s3": {
+          "mean_acc": 100.0,
+          "se_acc": 0.0,
+          "mean_noise": 0.3743617252446711,
+          "theory_noise": 0.28867513459481287,
+          "mean_cos_true": 0.9360113739967346,
+          "theory_cos": 0.9607689228305228,
+          "trials": 30
+        },
+        "roletag_u1": {
+          "mean_acc": 50.0,
+          "se_acc": 0.0,
+          "mean_noise": 1.0401879126826923,
+          "theory_noise": 0.28867513459481287,
+          "mean_cos_true": 0.6894996762275696,
+          "theory_cos": 0.9607689228305228,
+          "trials": 30
+        }
+      },
+      "32": {
+        "hadamard_u1": {
+          "mean_acc": 50.0,
+          "se_acc": 0.0,
+          "mean_noise": 1.0723546191429099,
+          "theory_noise": 0.4149966532662911,
+          "mean_cos_true": 0.6777222752571106,
+          "theory_cos": 0.9236236077106189,
+          "trials": 30
+        },
+        "quat_s3": {
+          "mean_acc": 100.0,
+          "se_acc": 0.0,
+          "mean_noise": 0.47305766980474195,
+          "theory_noise": 0.4149966532662911,
+          "mean_cos_true": 0.9033353328704834,
+          "theory_cos": 0.9236236077106189,
+          "trials": 30
+        },
+        "roletag_u1": {
+          "mean_acc": 50.0,
+          "se_acc": 0.0,
+          "mean_noise": 1.0723546179632346,
+          "theory_noise": 0.4149966532662911,
+          "mean_cos_true": 0.6777222752571106,
+          "theory_cos": 0.9236236077106189,
+          "trials": 30
+        }
+      },
+      "64": {
+        "hadamard_u1": {
+          "mean_acc": 50.0,
+          "se_acc": 0.0,
+          "mean_noise": 1.1544043517981966,
+          "theory_noise": 0.5916079783099616,
+          "mean_cos_true": 0.6502457857131958,
+          "theory_cos": 0.8606629658238704,
+          "trials": 30
+        },
+        "quat_s3": {
+          "mean_acc": 100.0,
+          "se_acc": 0.0,
+          "mean_noise": 0.6288519892841578,
+          "theory_noise": 0.5916079783099616,
+          "mean_cos_true": 0.8463170528411865,
+          "theory_cos": 0.8606629658238704,
+          "trials": 30
+        },
+        "roletag_u1": {
+          "mean_acc": 50.0,
+          "se_acc": 0.0,
+          "mean_noise": 1.1544043496561547,
+          "theory_noise": 0.5916079783099616,
+          "mean_cos_true": 0.6502458453178406,
+          "theory_cos": 0.8606629658238704,
+          "trials": 30
+        }
+      },
+      "128": {
+        "hadamard_u1": {
+          "mean_acc": 50.0,
+          "se_acc": 0.0,
+          "mean_noise": 1.3031911763207367,
+          "theory_noise": 0.8399735445569435,
+          "mean_cos_true": 0.6064590215682983,
+          "theory_cos": 0.7657148413352337,
+          "trials": 30
+        },
+        "quat_s3": {
+          "mean_acc": 100.0,
+          "se_acc": 0.0,
+          "mean_noise": 0.8675703624108185,
+          "theory_noise": 0.8399735445569435,
+          "mean_cos_true": 0.753343939781189,
+          "theory_cos": 0.7657148413352337,
+          "trials": 30
+        },
+        "roletag_u1": {
+          "mean_acc": 50.0,
+          "se_acc": 0.0,
+          "mean_noise": 1.3031911745667457,
+          "theory_noise": 0.8399735445569435,
+          "mean_cos_true": 0.6064590215682983,
+          "theory_cos": 0.7657148413352337,
+          "trials": 30
+        }
+      },
+      "256": {
+        "hadamard_u1": {
+          "mean_acc": 49.84375,
+          "se_acc": 0.04357604304864977,
+          "mean_noise": 1.5406882229881982,
+          "theory_noise": 1.1902380714238083,
+          "mean_cos_true": 0.5417543053627014,
+          "theory_cos": 0.6432675209026768,
+          "trials": 30
+        },
+        "quat_s3": {
+          "mean_acc": 99.609375,
+          "se_acc": 0.0637887953849786,
+          "mean_noise": 1.215220603494284,
+          "theory_noise": 1.1902380714238083,
+          "mean_cos_true": 0.6368445754051208,
+          "theory_cos": 0.6432675209026768,
+          "trials": 30
+        },
+        "roletag_u1": {
+          "mean_acc": 49.84375,
+          "se_acc": 0.04357604304864977,
+          "mean_noise": 1.5406882226467133,
+          "theory_noise": 1.1902380714238083,
+          "mean_cos_true": 0.5417543053627014,
+          "theory_cos": 0.6432675209026768,
+          "trials": 30
+        }
+      },
+      "512": {
+        "hadamard_u1": {
+          "mean_acc": 46.321614583333336,
+          "se_acc": 0.12286704690844148,
+          "mean_noise": 1.950144400082839,
+          "theory_noise": 1.6849002608133483,
+          "mean_cos_true": 0.4544644057750702,
+          "theory_cos": 0.5103842087300351,
+          "trials": 30
+        },
+        "quat_s3": {
+          "mean_acc": 88.33984375,
+          "se_acc": 0.241526806579396,
+          "mean_noise": 1.6977397586451843,
+          "theory_noise": 1.6849002608133483,
+          "mean_cos_true": 0.5060188174247742,
+          "theory_cos": 0.5103842087300351,
+          "trials": 30
+        },
+        "roletag_u1": {
+          "mean_acc": 46.321614583333336,
+          "se_acc": 0.12286704690844148,
+          "mean_noise": 1.9501443966369456,
+          "theory_noise": 1.6849002608133483,
+          "mean_cos_true": 0.4544644057750702,
+          "theory_cos": 0.5103842087300351,
+          "trials": 30
+        }
+      },
+      "1024": {
+        "hadamard_u1": {
+          "mean_acc": 30.095108695652176,
+          "se_acc": 0.19004028547479215,
+          "mean_noise": 2.5737724904041817,
+          "theory_noise": 2.38397427279183,
+          "mean_cos_true": 0.3608248233795166,
+          "theory_cos": 0.3868151175459599,
+          "trials": 23
+        },
+        "quat_s3": {
+          "mean_acc": 45.244565217391305,
+          "se_acc": 0.22390434266014722,
+          "mean_noise": 2.3879150757869785,
+          "theory_noise": 2.38397427279183,
+          "mean_cos_true": 0.3847673237323761,
+          "theory_cos": 0.3868151175459599,
+          "trials": 23
+        },
+        "roletag_u1": {
+          "mean_acc": 30.095108695652176,
+          "se_acc": 0.19004028547479215,
+          "mean_noise": 2.5737724848719234,
+          "theory_noise": 2.38397427279183,
+          "mean_cos_true": 0.3608247935771942,
+          "theory_cos": 0.3868151175459599,
+          "trials": 23
+        }
+      }
+    }
+  },
+  "knees": {
+    "LIMPIO": {
+      "umbral_95%": {
+        "hadamard_u1_N@95%": 256,
+        "quat_s3_N@95%": 256,
+        "roletag_u1_N@95%": 256
+      },
+      "umbral_50%": {
+        "hadamard_u1_N@50%": 512,
+        "quat_s3_N@50%": 512,
+        "roletag_u1_N@50%": 512
+      }
+    },
+    "CONFLICTO": {
+      "umbral_95%": {
+        "hadamard_u1_N@95%": null,
+        "quat_s3_N@95%": 256,
+        "roletag_u1_N@95%": null
+      },
+      "umbral_50%": {
+        "hadamard_u1_N@50%": 128,
+        "quat_s3_N@50%": 512,
+        "roletag_u1_N@50%": 128
+      }
+    }
+  }
+}

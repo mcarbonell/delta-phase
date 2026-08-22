@@ -103,6 +103,12 @@ Tres conclusiones, de menor a mayor:
 2. **La composición cuaterniónica preserva orden perfectamente bajo interferencia**: 100% exacto hasta 32 hechos con claves compuestas casi ortogonales (dk=45), zero-shot, sin entrenamiento ni optimizador que pueda contaminar la conclusión.
 3. **Veredicto de Frontera E:** la no-conmutatividad es **necesaria y suficiente** para binding que preserva orden a nivel álgebra. El *mecanismo* queda promovido a validado; lo que permanece abierto (y escéptico, tras v1) es si existe una tarea end-to-end donde esta ventaja estructural traduzca en precisión de modelo completo, dado que los work-arounds posicionales aprendidos son sorprendentemente fuertes cuando se les permite operar.
 
+**Falsable #1 — Rodilla de capacidad y ley de ruido √N (22‑08‑2026)** — `test_binding_capacity_knee.py`, datos: `binding_capacity_knee_results.json` (barrido N∈{16..1024}, modos LIMPIO/CONFLICTO, tres brazos, estado igualado):
+
+1. **Ley de ruido √N verificada (<1% de error en todo el barrido):** ‖ruido‖(N) sigue sqrt((N−1)/180) con precisión espectacular — p. ej. N=512: 1.678 empírico vs 1.685 teórico; N=1024: 2.370 vs 2.384. Los tres brazos son estadísticamente idénticos en modo limpio: **con presupuesto igualado, la memoria cuaterniónica tiene exactamente la misma capacidad por flotante que la compleja** (d_eff=180 en ambos).
+2. **Rodilla localizada:** top-1 ≥95% hasta N≈256 (99.8%); cae a ~90% en N=512 y a azar (~46%) hacia N=1024 — consistente con la separación típica entre valores aleatorios en dv=64. Traducción práctica: un almacén relacional S³ de ~8 KB retiene ~250 asociaciones ordenadas con fidelidad >99.8%.
+3. **Doble firma de fallo confirmada y cuantificada:** en modo CONFLICTO, hadamard/roletag presentan un suelo algebráico PLANO — 50.00% ± 0.00 constante desde N=16 hasta N=128, insensible al ruido creciente (fallo estructural, no estadístico) — mientras S³ mantiene ≥95% hasta N=256. Además se registró un matiz honesto: la escritura del PoC es acumulación hebbiana pura (pares conflictivos U(1) devuelven e₁+e₂ → elección aleatoria entre ambos, no reemplazo), y S³ muestra interferencia ligeramente elevada entre pares revertidos (comparten entidades) — visible solo a gran N.
+
 **Advertencias registradas de antemano:** presupuesto 4 flotantes/canal (vs 2 del complejo) — el confound de capacidad ya mordió una vez; emulación 4× ops reales sin GEMM nativo cuaterniónico (el hardware sopla en contra — lección Triton 6/6); riesgo de optimización más difícil por no-conmutatividad.
 
 ---
