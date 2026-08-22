@@ -62,19 +62,23 @@ if TRITON_AVAILABLE:
         n_idx = tl.arange(0, BLOCK_C)
         d_idx = tl.arange(0, BLOCK_D)
         mask_m = m_idx < C
-        mask_d = d_idx < D_K
 
         base_k = theta_k_ptr + pid * C * stride_k_m
 
-        # (BLOCK_C, BLOCK_D) tiles of the SAME angle matrix -> pairwise differences.
-        th_m = tl.load(base_k + m_idx[:, None] * stride_k_m + d_idx[None, :] * stride_k_d,
-                       mask=mask_m[:, None] & mask_d[None, :], other=0.0)
-        th_n = tl.load(base_k + n_idx[:, None] * stride_k_m + d_idx[None, :] * stride_k_d,
-                       mask=mask_m[:, None] & mask_d[None, :], other=0.0)
-
-        # Gram[m, n] = sum_d cos(th_m - th_n) / d_k   via a (BLOCK_C, BLOCK_C, BLOCK_D) tile.
-        diff = th_m[:, None, :] - th_n[None, :, :]
-        gram = tl.sum(tl.cos(diff), axis=2) * inv_dk
+        # Gram[m, n] = sum_d cos(th_m - th_n) / d_k, accumulated over BLOCK_D d-tiles
+        # so D_K is unbounded by register pressure.
+        m_idx_t = m_idx[:, None]
+        acc = tl.zeros((BLOCK_C, BLOCK_C), dtype=tl.float32)
+        for d0 in range(0, D_K, BLOCK_D):
+            d_off = d0 + d_idx
+            mask_d_tile = d_off < D_K
+            tm = tl.load(base_k + m_idx_t * stride_k_m + d_off[None, :] * stride_k_d,
+                         mask=mask_m[:, None] & mask_d_tile[None, :], other=0.0)
+            tn = tl.load(base_k + n_idx[:, None] * stride_k_m + d_off[None, :] * stride_k_d,
+                         mask=mask_m[:, None] & mask_d_tile[None, :], other=0.0)
+            diff = tm[:, None, :] - tn[None, :, :]
+            acc += tl.sum(tl.cos(diff), axis=2)
+        gram = acc * inv_dk
 
         # ROW scaling by beta_m (PyTorch-reference convention).
         beta_m = tl.load(beta_ptr + pid * C * stride_beta + m_idx * stride_beta,
