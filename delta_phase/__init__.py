@@ -1,5 +1,12 @@
 from .model import DeltaPhaseConfig, DeltaPhaseModel
-from .layers import DeltaPhaseHolographicBlock, LearnableSubstrateLerpFFN, ShortCausalConv1D, LogicPhaseCore, LaplacePhaseCore
+from .layers import (
+    DeltaPhaseHolographicBlock,
+    ComplexBetaDeltaPhaseBlock,
+    LearnableSubstrateLerpFFN,
+    ShortCausalConv1D,
+    LogicPhaseCore,
+    LaplacePhaseCore,
+)
 from .spectral import create_hadamard_matrix, create_dct2_matrix, create_haar_matrix
 from .kernels import delta_phase_chunkwise_fused, triton_available
 
@@ -8,6 +15,7 @@ __all__ = [
     "DeltaPhaseConfig",
     "DeltaPhaseModel",
     "DeltaPhaseHolographicBlock",
+    "ComplexBetaDeltaPhaseBlock",
     "LearnableSubstrateLerpFFN",
     "ShortCausalConv1D",
     "LogicPhaseCore",

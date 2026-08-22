@@ -280,6 +280,122 @@ class DeltaPhaseHolographicBlock(nn.Module):
         return x, (new_conv_state, memory_state)
 
 
+class ComplexBetaDeltaPhaseBlock(nn.Module):
+    """
+    Complex Beta Householder DeltaPhase Block:
+    Uses complex Householder parameterization: beta_t = 1 + exp(i * phi_t).
+    The eigenvalues of the recurrent update matrix I - beta_t K_t K_t* are lambda = -exp(i * phi_t) in S^1.
+    Natively computes cyclic group operations (Z_k modular addition) in a single token step
+    while maintaining isometric non-expansion.
+    """
+    def __init__(self, d_model: int, n_heads: int = 4, conv_kernel_size: int = 4, chunk_size: int = 32, num_banks: int = 2):
+        super().__init__()
+        self.d_model = d_model
+        self.n_heads = n_heads
+        self.d_k = d_model // n_heads
+        self.inv_dk = 1.0 / float(self.d_k)
+        self.chunk_size = chunk_size
+        
+        self.norm1 = nn.LayerNorm(d_model)
+        self.norm2 = nn.LayerNorm(d_model)
+        self.norm_retrieved = nn.LayerNorm(d_model)
+        self.causal_conv = ShortCausalConv1D(d_model, kernel_size=conv_kernel_size)
+        
+        self.w_k = nn.Linear(d_model, d_model, bias=False)
+        self.w_q = nn.Linear(d_model, d_model, bias=False)
+        self.w_v = nn.Linear(d_model, d_model, bias=False)
+        self.w_phi = nn.Linear(d_model, n_heads, bias=False)
+        
+        self.out_proj = nn.Linear(d_model, d_model)
+        self.ffn = LearnableSubstrateLerpFFN(d_model, num_banks=num_banks)
+        self.last_beta = None
+
+    def forward(self, x: torch.Tensor, memory_state=None):
+        res = x
+        normed = self.norm1(x)
+        conv_x = self.causal_conv(normed)
+        B, L, D = conv_x.shape
+        inv_dk = self.inv_dk
+        complex_dtype = torch.complex128 if x.dtype == torch.float64 else torch.complex64
+        
+        theta_k = self.w_k(conv_x).view(B, L, self.n_heads, self.d_k).transpose(1, 2)
+        theta_q = self.w_q(conv_x).view(B, L, self.n_heads, self.d_k).transpose(1, 2)
+        v = self.w_v(conv_x).view(B, L, self.n_heads, self.d_k).transpose(1, 2)
+        phi_beta = self.w_phi(conv_x).transpose(1, 2)
+        
+        K = torch.polar(torch.ones_like(theta_k), theta_k)
+        Q = torch.polar(torch.ones_like(theta_q), theta_q)
+        beta_complex = 1.0 + torch.polar(torch.ones_like(phi_beta), phi_beta)
+        self.last_beta = beta_complex.detach()
+        
+        if memory_state is None:
+            M_state = torch.zeros(B, self.n_heads, self.d_k, self.d_k, dtype=complex_dtype, device=x.device)
+        else:
+            M_state = memory_state
+            
+        out_list = []
+        for t in range(L):
+            kt, qt, vt, bt = K[:, :, t], Q[:, :, t], v[:, :, t], beta_complex[:, :, t]
+            v_old = torch.matmul(M_state, torch.conj(kt).unsqueeze(-1)).squeeze(-1).real * inv_dk
+            err = vt - v_old
+            err_c = err.to(complex_dtype)
+            update = bt.unsqueeze(-1).unsqueeze(-1) * torch.matmul(err_c.unsqueeze(-1), kt.unsqueeze(-2))
+            M_state = M_state + update
+            out_t = torch.matmul(M_state, torch.conj(qt).unsqueeze(-1)).squeeze(-1).real * inv_dk
+            out_list.append(out_t)
+            
+        retrieved = torch.stack(out_list, dim=2).transpose(1, 2).reshape(B, L, D)
+        retrieved_norm = self.norm_retrieved(retrieved)
+        
+        x = res + self.out_proj(retrieved_norm)
+        x = x + self.ffn(self.norm2(x))
+        return x, M_state
+
+    def step(self, x_t: torch.Tensor, state=None):
+        res = x_t
+        normed = self.norm1(x_t)
+        if state is None:
+            conv_state, memory_state = None, None
+        elif isinstance(state, tuple):
+            conv_state, memory_state = state
+        else:
+            conv_state, memory_state = None, state
+            
+        conv_x, new_conv_state = self.causal_conv.step(normed, conv_state=conv_state)
+        B, L, D = conv_x.shape
+        inv_dk = self.inv_dk
+        complex_dtype = torch.complex128 if x_t.dtype == torch.float64 else torch.complex64
+        
+        theta_k = self.w_k(conv_x).view(B, 1, self.n_heads, self.d_k).transpose(1, 2)
+        theta_q = self.w_q(conv_x).view(B, 1, self.n_heads, self.d_k).transpose(1, 2)
+        v = self.w_v(conv_x).view(B, 1, self.n_heads, self.d_k).transpose(1, 2)
+        phi_beta = self.w_phi(conv_x).transpose(1, 2)
+        
+        K = torch.polar(torch.ones_like(theta_k), theta_k)
+        Q = torch.polar(torch.ones_like(theta_q), theta_q)
+        beta_complex = 1.0 + torch.polar(torch.ones_like(phi_beta), phi_beta)
+        self.last_beta = beta_complex.detach()
+        
+        if memory_state is None:
+            memory_state = torch.zeros(B, self.n_heads, self.d_k, self.d_k, dtype=complex_dtype, device=x_t.device)
+            
+        kt, qt, vt, bt = K[:, :, 0], Q[:, :, 0], v[:, :, 0], beta_complex[:, :, 0]
+        v_old = torch.matmul(memory_state, torch.conj(kt).unsqueeze(-1)).squeeze(-1).real * inv_dk
+        err = vt - v_old
+        err_c = err.to(complex_dtype)
+        update = bt.unsqueeze(-1).unsqueeze(-1) * torch.matmul(err_c.unsqueeze(-1), kt.unsqueeze(-2))
+        memory_state = memory_state + update
+        
+        retrieved_t = torch.matmul(memory_state, torch.conj(qt).unsqueeze(-1)).squeeze(-1).real * inv_dk
+        retrieved = retrieved_t.reshape(B, 1, D)
+        retrieved_norm = self.norm_retrieved(retrieved)
+        
+        x = res + self.out_proj(retrieved_norm)
+        x = x + self.ffn(self.norm2(x))
+        return x, (new_conv_state, memory_state)
+
+
+
 class LaplacePhaseCore(nn.Module):
     """
     Delta-Laplace Phase Memory Core:

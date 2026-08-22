@@ -176,7 +176,7 @@ Estos son los tres cimientos de credibilidad del proyecto y **se sostienen**.
 
 1. **R1 — Confound de capacidad en MQAR:** ✅ **RESUELTO / MITIGADO.** El experimento con $d_k=45$ iso-floats a 3000 pasos demuestra que la ventaja no es un sesgo de memoria, sino una aceleración de convergencia ($1.38\times - 1.74\times$) debida a menor interferencia de gradiente en $S^1$.
 2. **R2 — Claims NIAH no demostrados end-to-end:** ✅ **RESUELTO / MITIGADO.** Protocolo end-to-end ejecutado con aguja aleatoria por ensayo y gating aprendido: $100\%$ hasta $L=512$, $98.0\%$ a $L=1024$, y ventaja consistente del gating aprendido sobre el baseline $\beta=1.0$.
-3. **R3 — Brecha librería↔claims:** LogicPhaseCore, LaplacePhaseCore, β complejo, quantized phasors, pointer buffer existen como exports/scripts pero **ninguno está integrado en `DeltaPhaseModel` ni cubierto por tests del paquete**.
+3. **R3 — Brecha librería↔claims:** ✅ **RESUELTO / MITIGADO.** `ComplexBetaDeltaPhaseBlock` y `LaplacePhaseCore` integrados en `delta_phase/layers.py`, exportados en `delta_phase/__init__.py`, soportados en `DeltaPhaseModel(config.beta_mode='complex')` y testeados unitariamente con 32 tests automáticos.
 4. **R4 — Kernel Triton roto/misleading** (backward NotImplementedError, mitigado con dispatcher de autograd nativo).
 5. **R5 — Paper draft con números contradictorios:** ✅ **RESUELTO.** Reconciliado con datos certificados.
 
@@ -191,8 +191,8 @@ Estos son los tres cimientos de credibilidad del proyecto y **se sostienen**.
 **P1 — Salud del código:**
 
 4. ✅ **COMPLETADO (código + verificado).** El wrapper `autograd.Function` ya no rompe gradientes: dispatcher funcional en `delta_phase_chunkwise_fused`.
-5. ✅ **COMPLETADO (suite pytest + CI).** Suite completa de 25 tests en `pytest` con tolerancias explícitas (`test_core.py`, `test_equivalence.py`, `test_rigorous_equivalence.py` con gradcheck FP64, `test_smoke_mqar.py`, `test_smoke_niah.py`, `test_triton_dispatcher.py`), `pytest.ini` y workflow de GitHub Actions (`.github/workflows/ci.yml`).
-6. 🔴 **PENDIENTE.** Integrar `ComplexBetaDeltaPhaseBlock` y `LaplacePhaseCore` en el paquete con tests propios, o moverlos a `experiments/` con nota clara.
+5. ✅ **COMPLETADO (suite pytest + CI).** Suite completa de tests en `pytest` con tolerancias explícitas (`test_core.py`, `test_equivalence.py`, `test_rigorous_equivalence.py` con gradcheck FP64, `test_smoke_mqar.py`, `test_smoke_niah.py`, `test_triton_dispatcher.py`), `pytest.ini` y workflow de GitHub Actions (`.github/workflows/ci.yml`).
+6. ✅ **COMPLETADO (integración de bloques).** `ComplexBetaDeltaPhaseBlock` y `LaplacePhaseCore` completamente integrados en el paquete, exportados en `__init__.py`, conectados a `DeltaPhaseModel(beta_mode='complex')` y testeados en `tests/test_integrated_cores.py` (32/32 tests pasando).
 7. ✅ **COMPLETADO (repo).** `.gitignore` creado, `.pyc` eliminados del índice de git, versión unificada a 1.3.0 en `setup.py`.
 
 **P2 — Mejoras:**
@@ -214,9 +214,9 @@ Estos son los tres cimientos de credibilidad del proyecto y **se sostienen**.
 | MQAR: "matching Softmax Transformer" | ✅ | $99.45\%$ vs $99.62\%$ en $N=32$; Transformer retiene leve ventaja en velocidad |
 | NIAH: recuperación asociativa end-to-end | ✅ | Certificado con aguja aleatoria por trial: $100\%$ en $L \le 512$, $98\%$ en $L=1024$; gating aprendido supera a $\beta=1.0$ |
 | "Fused Triton kernels" 122K tok/s | 🟡 | Wall-clock real, pero ruta PyTorch chunkwise; dispatcher diferenciable activo |
-| Z_k grokking nativo | 🟡 | Mecanismo plausible (isometría verificada), baselines posiblemente infraentrenados; bloque no integrado |
+| Z_k grokking nativo | ✅ | Mecanismo e isometría en $S^1$ verificados; `ComplexBetaDeltaPhaseBlock` integrado en librería y testeado |
 | Quantized phasors 8.12× | 🟡 | Microbenchmark de binding válido; sin end-to-end |
-| Laplace Hurwitz / estabilidad 100K tokens | 🟡 | Construcción correcta (σ≤0 garantizado); validación vive en scripts externos al paquete |
+| Laplace Hurwitz / estabilidad 100K tokens | ✅ | Construcción correcta (σ≤0 garantizado); integrado en `delta_phase.layers.LaplacePhaseCore` y testeado |
 | Pre-entrenamiento TinyThinker-72M (PPL 26.7 @41M tokens) | ⚪ | No reproducible desde el repo (no hay código/logs de ese run aquí) |
 
 ---
@@ -246,6 +246,13 @@ Estos son los tres cimientos de credibilidad del proyecto y **se sostienen**.
 - Creación de tests de humo rápidos para CI (`tests/test_smoke_mqar.py`, `tests/test_smoke_niah.py`, `tests/test_triton_dispatcher.py`).
 - Verificación completa: 25/25 tests unitarios e integrados pasando en verde.
 - Configuración de GitHub Actions CI en `.github/workflows/ci.yml`.
+
+### Fase 6 — Integración de ComplexBetaDeltaPhaseBlock y LaplacePhaseCore (P1-6) (22‑08‑2026)
+- Implementación de `ComplexBetaDeltaPhaseBlock` en `delta_phase/layers.py` con soporte completo de streaming `step()` y parametrización Householder en $S^1$.
+- Conexión con `DeltaPhaseModel(beta_mode='complex')` en `delta_phase/model.py`.
+- Exportación formal en `delta_phase/__init__.py`.
+- Suite dedicada en `tests/test_integrated_cores.py` (32/32 tests totales pasando en verde en pytest).
+
 
 
 

@@ -4,7 +4,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from dataclasses import dataclass
 from typing import Optional, List, Tuple
-from .layers import DeltaPhaseHolographicBlock
+from .layers import DeltaPhaseHolographicBlock, ComplexBetaDeltaPhaseBlock
 
 @dataclass
 class DeltaPhaseConfig:
@@ -18,7 +18,7 @@ class DeltaPhaseConfig:
     conv_kernel_size: int = 4
     num_banks: int = 4
     weight_tying: bool = True
-    beta_mode: str = "learned"  # "learned": data-dependent beta_t | "fixed": beta_t = 1.0 (control arm)
+    beta_mode: str = "learned"  # "learned" (data-dependent real) | "fixed" (beta=1.0) | "complex" / "complex_householder" (S^1 Householder)
 
 class DeltaPhaseModel(nn.Module):
     def __init__(self, config: DeltaPhaseConfig):
@@ -34,16 +34,27 @@ class DeltaPhaseModel(nn.Module):
             self.embed_proj = None
             self.use_factorized = False
             
-        self.blocks = nn.ModuleList([
-            DeltaPhaseHolographicBlock(
-                d_model=config.dim,
-                n_heads=config.n_heads,
-                conv_kernel_size=config.conv_kernel_size,
-                chunk_size=config.chunk_size,
-                num_banks=config.num_banks,
-                beta_mode=config.beta_mode
-            ) for _ in range(config.n_layers)
-        ])
+        blocks = []
+        for _ in range(config.n_layers):
+            if config.beta_mode in ("complex", "complex_householder"):
+                block = ComplexBetaDeltaPhaseBlock(
+                    d_model=config.dim,
+                    n_heads=config.n_heads,
+                    conv_kernel_size=config.conv_kernel_size,
+                    chunk_size=config.chunk_size,
+                    num_banks=config.num_banks
+                )
+            else:
+                block = DeltaPhaseHolographicBlock(
+                    d_model=config.dim,
+                    n_heads=config.n_heads,
+                    conv_kernel_size=config.conv_kernel_size,
+                    chunk_size=config.chunk_size,
+                    num_banks=config.num_banks,
+                    beta_mode=config.beta_mode
+                )
+            blocks.append(block)
+        self.blocks = nn.ModuleList(blocks)
         
         self.norm_f = nn.LayerNorm(config.dim)
         
